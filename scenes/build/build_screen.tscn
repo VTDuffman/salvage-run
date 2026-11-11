@@ -1,0 +1,48 @@
+[gd_scene format=3 uid="uid://0n01gy6rfl8d"]
+
+[ext_resource type="Script" uid="uid://dorxvduqauunf" path="res://scenes/build/grid_view.gd" id="1_grid"]
+
+[node name="BuildScreen" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Background" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.0784314, 0.0901961, 0.12549, 1)
+
+[node name="Center" type="CenterContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Ship" type="VBoxContainer" parent="Center"]
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="FrontLabel" type="Label" parent="Center/Ship"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 8
+text = "FRONT"
+horizontal_alignment = 1
+
+[node name="GridView" type="GridContainer" parent="Center/Ship"]
+layout_mode = 2
+script = ExtResource("1_grid")
+
+[node name="RearLabel" type="Label" parent="Center/Ship"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 8
+text = "REAR"
+horizontal_alignment = 1
