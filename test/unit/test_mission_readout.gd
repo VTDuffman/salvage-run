@@ -89,7 +89,7 @@ func test_fuel_needed_is_burn_when_fuel_cards_countered() -> void:
 func test_readout_short_on_cargo() -> void:
 	var build: ShipBuild = _ship(1)
 	assert_eq(MissionReadout.cargo_line(build, CARGO_RUN), "Cargo 1/2")
-	assert_eq(MissionReadout.fuel_line(build, CARGO_RUN), "Fuel 8 / 9 needed")
+	assert_eq(MissionReadout.fuel_line(build, CARGO_RUN), "Fuel 8 / 9 needed (1 short)")
 	assert_false(MissionReadout.cargo_met(build, CARGO_RUN))
 	assert_false(MissionReadout.fuel_met(build, CARGO_RUN))
 
@@ -97,7 +97,7 @@ func test_readout_short_on_cargo() -> void:
 func test_readout_met() -> void:
 	var build: ShipBuild = _twin_thruster_ship()
 	assert_eq(MissionReadout.cargo_line(build, CARGO_RUN), "Cargo 2/2")
-	assert_eq(MissionReadout.fuel_line(build, CARGO_RUN), "Fuel 8 / 8 needed")
+	assert_eq(MissionReadout.fuel_line(build, CARGO_RUN), "Fuel 8 / 8 needed (0 spare)")
 	assert_true(MissionReadout.cargo_met(build, CARGO_RUN))
 	assert_true(MissionReadout.fuel_met(build, CARGO_RUN))
 	assert_eq(MissionReadout.fuel_card_lines(build, CARGO_RUN), [] as Array[String])
@@ -107,7 +107,7 @@ func test_readout_follows_tuned_mission() -> void:
 	var build: ShipBuild = _ship(2)
 	var mission: MissionData = _tuned(3, 2)
 	assert_eq(MissionReadout.cargo_line(build, mission), "Cargo 2/3")
-	assert_eq(MissionReadout.fuel_line(build, mission), "Fuel 8 / 17 needed", "16 burn + 1 Gravity Well")
+	assert_eq(MissionReadout.fuel_line(build, mission), "Fuel 8 / 17 needed (9 short)", "16 burn + 1 Gravity Well")
 	assert_false(MissionReadout.cargo_met(build, mission))
 	assert_false(MissionReadout.fuel_met(build, mission))
 	assert_eq(build.launch_refusal(mission), "Launch refused: 2 cargo holds, mission needs 3.")
@@ -120,7 +120,7 @@ func test_readout_fuel_follows_tank_data() -> void:
 	big_tank.fuel_capacity = 6
 	build.place(Vector2i(0, 1), big_tank)
 	assert_eq(MissionReadout.fuel_line(build, CARGO_RUN),
-			"Fuel %d / 9 needed" % (6 + FUEL_TANK.fuel_capacity))
+			"Fuel %d / 9 needed (%d spare)" % [6 + FUEL_TANK.fuel_capacity, 6 + FUEL_TANK.fuel_capacity - 9])
 
 
 func test_build_fuel_equals_resolver_starting_fuel() -> void:
@@ -132,13 +132,37 @@ func test_build_fuel_equals_resolver_starting_fuel() -> void:
 		assert_eq(build.fuel_capacity(), RunResolver.resolve(build, CARGO_RUN, 11).starting_fuel)
 
 
+func test_fuel_spare_and_status_three_states() -> void:
+	var exact: ShipBuild = _twin_thruster_ship()
+	assert_eq(MissionReadout.fuel_spare(exact, CARGO_RUN), 0)
+	assert_eq(MissionReadout.fuel_status(exact, CARGO_RUN), MissionReadout.FuelStatus.EXACT)
+	assert_true(MissionReadout.fuel_met(exact, CARGO_RUN), "0 spare still meets the need")
+
+	var spare: ShipBuild = _twin_thruster_ship()
+	spare.place(Vector2i(1, 1), FUEL_TANK)
+	assert_eq(MissionReadout.fuel_spare(spare, CARGO_RUN), FUEL_TANK.fuel_capacity)
+	assert_eq(MissionReadout.fuel_status(spare, CARGO_RUN), MissionReadout.FuelStatus.SPARE)
+	assert_eq(MissionReadout.fuel_line(spare, CARGO_RUN), "Fuel %d / 8 needed (%d spare)"
+			% [3 * FUEL_TANK.fuel_capacity, 3 * FUEL_TANK.fuel_capacity - 8])
+
+	var short: ShipBuild = _ship(2)
+	assert_eq(MissionReadout.fuel_spare(short, CARGO_RUN), -1)
+	assert_eq(MissionReadout.fuel_status(short, CARGO_RUN), MissionReadout.FuelStatus.SHORT)
+	assert_false(MissionReadout.fuel_met(short, CARGO_RUN))
+
+	var one_spare: MissionData = _tuned(2, 1)
+	one_spare.card_pool = CARGO_RUN.card_pool.slice(0, 7)
+	assert_eq(MissionReadout.fuel_line(exact, one_spare), "Fuel 8 / 7 needed (1 spare)", "1 spare is the green edge")
+	assert_eq(MissionReadout.fuel_status(exact, one_spare), MissionReadout.FuelStatus.SPARE)
+
+
 # --- Uncountered fuel cards ----------------------------------------------------
 
 func test_both_fuel_cards_uncountered() -> void:
 	var build: ShipBuild = ShipBuild.new()
 	build.place(Vector2i(1, 2), THRUSTER)
 	build.place(Vector2i(0, 1), FUEL_TANK)
-	assert_eq(MissionReadout.fuel_line(build, CARGO_RUN), "Fuel 4 / 11 needed")
+	assert_eq(MissionReadout.fuel_line(build, CARGO_RUN), "Fuel 4 / 11 needed (7 short)")
 	assert_false(MissionReadout.fuel_met(build, CARGO_RUN))
 	var expected: Array[String] = [
 		"+2 Fuel Leak: counter with 2 Fuel Tanks (have 1)",
@@ -150,7 +174,7 @@ func test_both_fuel_cards_uncountered() -> void:
 
 func test_fuel_leak_countered_leaves_gravity_well() -> void:
 	var build: ShipBuild = _ship(2)
-	assert_eq(MissionReadout.fuel_line(build, CARGO_RUN), "Fuel 8 / 9 needed")
+	assert_eq(MissionReadout.fuel_line(build, CARGO_RUN), "Fuel 8 / 9 needed (1 short)")
 	assert_false(MissionReadout.fuel_met(build, CARGO_RUN), "8 fuel runs out against 9")
 	var expected: Array[String] = ["+1 Gravity Well: counter with 2 Thrusters in rear row (have 1)"]
 	assert_eq(MissionReadout.fuel_card_lines(build, CARGO_RUN), expected)
@@ -172,7 +196,7 @@ func test_fuel_cards_follow_tuned_card_data() -> void:
 	well.counter_threshold = 3
 	var mission: MissionData = _with_card(well)
 	var build: ShipBuild = _twin_thruster_ship()
-	assert_eq(MissionReadout.fuel_line(build, mission), "Fuel 8 / 11 needed", "2 thrusters no longer counter")
+	assert_eq(MissionReadout.fuel_line(build, mission), "Fuel 8 / 11 needed (3 short)", "2 thrusters no longer counter")
 	var expected: Array[String] = ["+3 Gravity Well: counter with 3 Thrusters in rear row (have 2)"]
 	assert_eq(MissionReadout.fuel_card_lines(build, mission), expected)
 

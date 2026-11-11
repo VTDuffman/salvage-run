@@ -6,11 +6,17 @@ extends RefCounted
 ## Every number comes from MissionData, CardData, PartData (via ShipBuild) or
 ## RunResult.
 
+## How a build's launch fuel compares with what it needs.
+enum FuelStatus { SHORT, EXACT, SPARE }
+
 const PANEL_CARGO: String = "CARGO HOLDS %d"
 const PANEL_CARDS: String = "CARDS %d"
 const PANEL_FUEL_PER_CARD: String = "FUEL/CARD %d"
 const CARGO_LINE: String = "Cargo %d/%d"
-const FUEL_LINE: String = "Fuel %d / %d needed"
+## Filled with: build fuel, fuel needed, FUEL_SPARE or FUEL_SHORT.
+const FUEL_LINE: String = "Fuel %d / %d needed (%s)"
+const FUEL_SPARE: String = "%d spare"
+const FUEL_SHORT: String = "%d short"
 ## Filled with: extra fuel, card name, counter threshold, counter part name
 ## (plural unless 1), row suffix, working counter parts now.
 const FUEL_CARD_LINE: String = "+%d %s: counter with %d %s%s (have %d)"
@@ -77,17 +83,38 @@ static func cargo_line(build: ShipBuild, mission: MissionData) -> String:
 	return CARGO_LINE % [build.working_count(PartData.Kind.CARGO_HOLD), mission.cargo_required]
 
 
-## "Fuel <build fuel> / <needed> needed".
+## "Fuel <build fuel> / <needed> needed (<n> spare)", or "(<n> short)" when
+## the build has less fuel than it needs.
 static func fuel_line(build: ShipBuild, mission: MissionData) -> String:
-	return FUEL_LINE % [build.fuel_capacity(), fuel_needed(build, mission)]
+	var spare: int = fuel_spare(build, mission)
+	var short: bool = fuel_status(build, mission) == FuelStatus.SHORT
+	var margin: String = FUEL_SHORT % -spare if short else FUEL_SPARE % spare
+	return FUEL_LINE % [build.fuel_capacity(), fuel_needed(build, mission), margin]
+
+
+## Build fuel minus fuel needed; negative when short. Launch-time only: no
+## in-run damage is predicted.
+static func fuel_spare(build: ShipBuild, mission: MissionData) -> int:
+	return build.fuel_capacity() - fuel_needed(build, mission)
+
+
+## SHORT below the need, EXACT at 0 spare, SPARE with 1+ spare.
+static func fuel_status(build: ShipBuild, mission: MissionData) -> FuelStatus:
+	var spare: int = fuel_spare(build, mission)
+	if spare < 0:
+		return FuelStatus.SHORT
+	if spare == 0:
+		return FuelStatus.EXACT
+	return FuelStatus.SPARE
 
 
 static func cargo_met(build: ShipBuild, mission: MissionData) -> bool:
 	return build.working_count(PartData.Kind.CARGO_HOLD) >= mission.cargo_required
 
 
+## True unless the build is short (0 spare counts as met).
 static func fuel_met(build: ShipBuild, mission: MissionData) -> bool:
-	return build.fuel_capacity() >= fuel_needed(build, mission)
+	return fuel_status(build, mission) != FuelStatus.SHORT
 
 
 ## "RUN WON", "RUN LOST", or "" while the result holds neither.

@@ -10,8 +10,16 @@ const MISSION_PATH: String = "res://data/missions/cargo_run.tres"
 const RUN_SCREEN_SCENE: PackedScene = preload("res://scenes/run/run_screen.tscn")
 const HINT_TEXT: String = "Drag parts onto the grid. Drag off or right-click to remove."
 const RETRY_TEXT: String = "Retry: the next launch reuses seed %d."
+## Readout colors: green when met with margin, amber at no margin (and for the
+## uncountered fuel card lines), red when short.
 const OK_COLOR: Color = Color(0.49, 0.77, 0.35)
-const WARNING_COLOR: Color = Color(0.95, 0.42, 0.3)
+const WARNING_COLOR: Color = Color(0.96, 0.76, 0.26)
+const SHORT_COLOR: Color = Color(0.95, 0.42, 0.3)
+const FUEL_STATUS_COLORS: Dictionary[MissionReadout.FuelStatus, Color] = {
+	MissionReadout.FuelStatus.SHORT: SHORT_COLOR,
+	MissionReadout.FuelStatus.EXACT: WARNING_COLOR,
+	MissionReadout.FuelStatus.SPARE: OK_COLOR,
+}
 
 var mission: MissionData
 var build: ShipBuild = ShipBuild.new()
@@ -113,9 +121,9 @@ func _refresh_readout() -> void:
 	_cargo_readout.text = MissionReadout.cargo_line(build, mission)
 	_fuel_readout.text = MissionReadout.fuel_line(build, mission)
 	_cargo_readout.add_theme_color_override("font_color",
-			OK_COLOR if MissionReadout.cargo_met(build, mission) else WARNING_COLOR)
+			OK_COLOR if MissionReadout.cargo_met(build, mission) else SHORT_COLOR)
 	_fuel_readout.add_theme_color_override("font_color",
-			OK_COLOR if MissionReadout.fuel_met(build, mission) else WARNING_COLOR)
+			FUEL_STATUS_COLORS[MissionReadout.fuel_status(build, mission)])
 	var fuel_card_lines: Array[String] = MissionReadout.fuel_card_lines(build, mission)
 	_fuel_cards_readout.text = "\n".join(fuel_card_lines)
 	_fuel_cards_readout.visible = not fuel_card_lines.is_empty()
