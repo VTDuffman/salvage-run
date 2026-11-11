@@ -220,10 +220,20 @@ func _hit(cell: Vector2i, absorbed: int, damage: int, hp_after: int, destroyed: 
 
 # --- Launch flow ---------------------------------------------------------------
 
-## Places the mission's required cargo holds along the front row.
+## Places the mission's required cargo holds in free cells, front row first.
+## Fails the test if the grid has too few free cells.
 func _place_required_holds(build: ShipBuild) -> void:
-	for column: int in CARGO_RUN.cargo_required:
-		build.place(Vector2i(column, 0), CARGO_HOLD)
+	var placed: int = 0
+	for row: int in ShipBuild.ROWS:
+		for column: int in ShipBuild.COLUMNS:
+			if placed >= CARGO_RUN.cargo_required:
+				return
+			var cell: Vector2i = Vector2i(column, row)
+			if build.get_part(cell) == null:
+				build.place(cell, CARGO_HOLD)
+				placed += 1
+	if placed < CARGO_RUN.cargo_required:
+		fail_test("only %d free cells for %d required cargo holds" % [placed, CARGO_RUN.cargo_required])
 
 
 func test_refused_launch_opens_no_run_screen() -> void:
@@ -398,6 +408,7 @@ func _assert_back_to_building(screen: Control, layout_before: Array[PartData]) -
 
 func test_mission_panel_shows_mission_numbers() -> void:
 	var screen: Control = _open_build_screen()
+	assert_eq((screen.get_node("%MissionTitle") as Label).text, CARGO_RUN.display_name.to_upper())
 	var text: String = (screen.get_node("%MissionLines") as Label).text
 	for line: String in MissionReadout.panel_lines(CARGO_RUN):
 		assert_string_contains(text, line)
@@ -412,8 +423,14 @@ func test_readout_updates_on_build_changed() -> void:
 	var input: BuildMouseInput = screen.get_node("%BuildMouseInput") as BuildMouseInput
 	var cargo: Label = screen.get_node("%CargoReadout") as Label
 	var fuel: Label = screen.get_node("%FuelReadout") as Label
+	var constants: Dictionary = (screen.get_script() as Script).get_script_constant_map()
+	var warning: Color = constants["WARNING_COLOR"]
+	var ok: Color = constants["OK_COLOR"]
+	assert_ne(warning, ok)
 	assert_eq(cargo.text, "Cargo 0/2")
 	assert_eq(fuel.text, "Fuel 0 / 8 needed")
+	assert_eq(cargo.get_theme_color("font_color"), warning, "empty build: cargo short")
+	assert_eq(fuel.get_theme_color("font_color"), warning, "empty build: fuel short")
 
 	build.place(Vector2i(0, 0), CARGO_HOLD)
 	build.place(Vector2i(0, 1), FUEL_TANK)
@@ -421,9 +438,8 @@ func test_readout_updates_on_build_changed() -> void:
 	input.build_changed.emit()
 	assert_eq(cargo.text, "Cargo 1/2")
 	assert_eq(fuel.text, "Fuel 8 / 8 needed")
-	var warning: Color = cargo.get_theme_color("font_color")
-	var ok: Color = fuel.get_theme_color("font_color")
-	assert_ne(warning, ok, "short cargo shows in the warning color")
+	assert_eq(cargo.get_theme_color("font_color"), warning, "short cargo shows in the warning color")
+	assert_eq(fuel.get_theme_color("font_color"), ok, "met fuel shows in the ok color")
 
 	build.place(Vector2i(1, 0), CARGO_HOLD)
 	build.move(Vector2i(2, 1), Vector2i(2, 0))
@@ -472,6 +488,37 @@ func test_retry_same_seed_replays_card_order_with_current_build() -> void:
 	assert_eq(second.get_result().card_order, first_order, "same card order")
 	assert_eq(second.get_playback().get_part(Vector2i(2, 0)), HULL_PLATING, "edits are launched")
 	assert_false(screen.call("is_retrying_seed"))
+
+
+func test_refused_launch_after_retry_keeps_the_seed() -> void:
+	var screen: Control = _open_build_screen()
+	var build: ShipBuild = screen.get("build") as ShipBuild
+	var input: BuildMouseInput = screen.get_node("%BuildMouseInput") as BuildMouseInput
+	var status: Label = screen.get_node("%StatusLabel") as Label
+	_ready_ship(build)
+	var first: RunScreen = _launch(screen)
+	var first_seed: int = screen.get("run_seed")
+	var first_order: Array[CardData] = first.get_result().card_order
+	await _finish_and_press(first, "RetryButton")
+	var retry_text: String = (screen.get_script() as Script).get_script_constant_map()["RETRY_TEXT"]
+
+	var hold_cell: Vector2i = build.cells().filter(
+			func(cell: Vector2i) -> bool: return build.get_part(cell) == CARGO_HOLD)[0]
+	build.remove(hold_cell)
+	input.build_changed.emit()
+	assert_eq(status.text, retry_text % first_seed, "retry text survives a build edit")
+
+	assert_null(_launch(screen), "cargo short: launch refused")
+	assert_string_starts_with(status.text, "Launch refused:")
+	assert_true(screen.call("is_retrying_seed"), "a refused launch does not use up the retry")
+
+	build.place(hold_cell, CARGO_HOLD)
+	input.build_changed.emit()
+	var second: RunScreen = _launch(screen)
+	assert_not_null(second)
+	assert_eq(screen.get("run_seed"), first_seed)
+	assert_eq(second.get_result().seed, first_seed)
+	assert_eq(second.get_result().card_order, first_order)
 
 
 func test_rebuild_draws_a_new_seed() -> void:

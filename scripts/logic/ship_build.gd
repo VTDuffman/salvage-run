@@ -68,13 +68,9 @@ func cells() -> Array[Vector2i]:
 	return occupied
 
 
-## Returns true if at least one thruster sits in the rear row.
+## Returns true if at least one thruster sits where it works (the rear row).
 func has_rear_thruster() -> bool:
-	for column: int in COLUMNS:
-		var part: PartData = _parts[_index(Vector2i(column, REAR_ROW))]
-		if part != null and part.kind == PartData.Kind.THRUSTER:
-			return true
-	return false
+	return working_count(PartData.Kind.THRUSTER) > 0
 
 
 ## True when [param part] does its job in [param cell]: a part with a required
