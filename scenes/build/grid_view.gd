@@ -13,6 +13,10 @@ const NO_CELL: Vector2i = Vector2i(-1, -1)
 @export var cell_color: Color = Color("2b3140")
 @export var cell_border_color: Color = Color("5a6478")
 @export var label_font_size: int = 8
+@export var destroyed_color: Color = Color("15171c")
+@export var destroyed_text_color: Color = Color("c04040")
+@export var damage_flash_color: Color = Color("e03030")
+@export var shield_flash_color: Color = Color("3a8cff")
 
 var _cells: Array[Panel] = []
 var _styles: Array[StyleBoxFlat] = []
@@ -48,6 +52,40 @@ func show_build(build: ShipBuild) -> void:
 				_styles[index].bg_color = part.color
 				label.text = part.display_name
 				label.add_theme_color_override("font_color", text_color_for(part.color))
+
+
+## Redraws every cell from [param playback]: part name and current HP,
+## destroyed cells dark with an "X", and the last card's struck cells tinted
+## red (damage) or blue (fully absorbed by a shield). [param flash_strength]
+## sets the tint: 0 is none, 1 is the full flash color.
+func show_playback(playback: RunPlayback, flash_strength: float) -> void:
+	var strength: float = clampf(flash_strength, 0.0, 1.0)
+	for row: int in ROWS:
+		for column: int in COLUMNS:
+			var cell: Vector2i = Vector2i(column, row)
+			var index: int = row * COLUMNS + column
+			var part: PartData = playback.get_part(cell)
+			var label: Label = _labels[index]
+			var background: Color = cell_color
+			var destroyed: bool = part != null and playback.is_destroyed(cell)
+			if part == null:
+				label.text = ""
+			elif destroyed:
+				background = destroyed_color
+				label.text = "X"
+			else:
+				background = part.color
+				label.text = "%s\n%d/%d HP" % [part.display_name, playback.hp(cell), part.max_hp]
+			var flash: RunPlayback.Flash = playback.flash_at(cell)
+			if flash == RunPlayback.Flash.DAMAGE:
+				background = background.lerp(damage_flash_color, strength)
+			elif flash == RunPlayback.Flash.SHIELD:
+				background = background.lerp(shield_flash_color, strength)
+			_styles[index].bg_color = background
+			var text_color: Color = text_color_for(background)
+			if destroyed and (flash == RunPlayback.Flash.NONE or strength <= 0.0):
+				text_color = destroyed_text_color
+			label.add_theme_color_override("font_color", text_color)
 
 
 ## Returns the part name shown in the cell at [param cell], or "" if blank.

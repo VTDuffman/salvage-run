@@ -14,6 +14,13 @@ signal build_changed
 
 ## The build edited by this layer; assigned by the build screen.
 var build: ShipBuild
+## While false, mouse events are ignored and any drag in progress is dropped
+## without editing the build (e.g. while the run screen is open).
+var enabled: bool = true:
+	set(value):
+		enabled = value
+		if not enabled:
+			_cancel_drag()
 
 var _drag_part: PartData = null
 ## Grid cell the drag started from, or GridView.NO_CELL when it came from the palette.
@@ -43,7 +50,7 @@ func is_dragging() -> bool:
 
 
 func _input(event: InputEvent) -> void:
-	if build == null:
+	if build == null or not enabled:
 		return
 	var button: InputEventMouseButton = event as InputEventMouseButton
 	if button != null:
@@ -111,6 +118,13 @@ func _remove_at(pos: Vector2) -> void:
 	build.remove(cell)
 	get_viewport().set_input_as_handled()
 	build_changed.emit()
+
+
+func _cancel_drag() -> void:
+	_drag_part = null
+	_drag_from = GridView.NO_CELL
+	if _ghost != null:
+		_ghost.visible = false
 
 
 func _move_ghost(pos: Vector2) -> void:
