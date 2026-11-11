@@ -5,14 +5,21 @@ extends Control
 ## fuel and card counters, one log line per card, and Play / Pause /
 ## Fast-forward controls. Once playback finishes it shows the outcome panel
 ## with Rebuild and Retry same seed, which only emit signals: the build screen
-## closes this screen. Display only: it never calls the resolver or applies a
-## rule; RunPlayback and PlaybackClock hold the state and timing.
+## closes this screen. Optional playtest feedback buttons there emit
+## difficulty_tagged; the build screen records it. Display only: it never
+## calls the resolver or applies a rule; RunPlayback and PlaybackClock hold
+## the state and timing.
 
 ## Rebuild pressed: back to the build screen; the next launch draws a new seed.
 signal rebuild_requested
 ## Retry same seed pressed: back to the build screen; the next launch reuses
 ## this run's seed.
 signal retry_requested
+## The outcome panel appeared: playback reached the end of the run.
+signal outcome_shown
+## A playtest feedback button was pressed; [param tag] is one of
+## PlaytestRecord.TAGS. Optional: the player may never press one.
+signal difficulty_tagged(tag: String)
 
 const FUEL_TEXT: String = "FUEL %d"
 const CARD_TEXT: String = "CARD %d/%d"
@@ -22,6 +29,10 @@ var _result: RunResult = null
 var _mission: MissionData = null
 var _clock: PlaybackClock = PlaybackClock.new()
 var _speed_buttons: ButtonGroup = ButtonGroup.new()
+## Playtest feedback button per tag.
+var _feedback_buttons: Dictionary[String, Button] = {}
+## The tag pressed for this run, or "" when none.
+var _difficulty_tag: String = ""
 
 @onready var _grid: GridView = %GridView
 @onready var _fuel_label: Label = %FuelLabel
@@ -35,6 +46,9 @@ var _speed_buttons: ButtonGroup = ButtonGroup.new()
 @onready var _outcome_detail: Label = %OutcomeDetail
 @onready var _rebuild_button: Button = %RebuildButton
 @onready var _retry_button: Button = %RetryButton
+@onready var _too_hard_button: Button = %TooHardButton
+@onready var _fair_button: Button = %FairButton
+@onready var _too_easy_button: Button = %TooEasyButton
 
 
 func _ready() -> void:
@@ -46,6 +60,14 @@ func _ready() -> void:
 	_fast_button.pressed.connect(_on_fast_pressed)
 	_rebuild_button.pressed.connect(rebuild_requested.emit)
 	_retry_button.pressed.connect(retry_requested.emit)
+	_feedback_buttons = {
+		PlaytestRecord.TAG_TOO_HARD: _too_hard_button,
+		PlaytestRecord.TAG_FAIR: _fair_button,
+		PlaytestRecord.TAG_TOO_EASY: _too_easy_button,
+	}
+	for tag: String in _feedback_buttons:
+		_feedback_buttons[tag].toggle_mode = true
+		_feedback_buttons[tag].pressed.connect(_on_feedback_pressed.bind(tag))
 	_outcome_panel.visible = false
 	_sync_buttons()
 	set_process(_playback != null)
@@ -62,6 +84,7 @@ func start(build: ShipBuild, result: RunResult, mission: MissionData) -> void:
 	_clock = PlaybackClock.new()
 	_log.text = ""
 	_outcome_panel.visible = false
+	_difficulty_tag = ""
 	_sync_buttons()
 	_refresh()
 	set_process(true)
@@ -111,10 +134,16 @@ func is_outcome_shown() -> bool:
 	return _outcome_panel.visible
 
 
+## The feedback tag pressed for this run, or "" when none.
+func get_difficulty_tag() -> String:
+	return _difficulty_tag
+
+
 func _show_outcome() -> void:
 	_outcome_title.text = MissionReadout.outcome_title(_result)
 	_outcome_detail.text = MissionReadout.outcome_detail(_result, _mission)
 	_outcome_panel.visible = true
+	outcome_shown.emit()
 
 
 func _refresh() -> void:
@@ -123,6 +152,12 @@ func _refresh() -> void:
 	_grid.show_playback(_playback, _clock.flash_strength())
 	_fuel_label.text = FUEL_TEXT % maxi(_playback.fuel(), 0)
 	_card_label.text = CARD_TEXT % [_playback.card_index(), _playback.card_count()]
+
+
+func _on_feedback_pressed(tag: String) -> void:
+	_difficulty_tag = tag
+	_sync_buttons()
+	difficulty_tagged.emit(tag)
 
 
 func _on_play_pressed() -> void:
@@ -145,3 +180,5 @@ func _sync_buttons() -> void:
 	_play_button.set_pressed_no_signal(not _clock.paused and _clock.speed == PlaybackClock.Speed.NORMAL)
 	_pause_button.set_pressed_no_signal(_clock.paused)
 	_fast_button.set_pressed_no_signal(not _clock.paused and _clock.speed == PlaybackClock.Speed.FAST)
+	for tag: String in _feedback_buttons:
+		_feedback_buttons[tag].set_pressed_no_signal(tag == _difficulty_tag)

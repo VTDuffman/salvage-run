@@ -14,6 +14,22 @@ const SHIELD: PartData = preload("res://data/parts/shield.tres")
 const HULL_PLATING: PartData = preload("res://data/parts/hull_plating.tres")
 
 const SECONDS_PER_CARD: float = PlaybackClock.DEFAULT_SECONDS_PER_CARD
+const TEST_LOG_PATH: String = "user://test_playtest_log_run_screen.jsonl"
+
+var _saved_log_path: String = ""
+
+
+## Build screens here play runs to the outcome: keep them off the real log even
+## when the suite runs from the GUT panel, which skips the pre-run hook.
+func before_all() -> void:
+	_saved_log_path = PlaytestLog.default_path
+	PlaytestLog.default_path = TEST_LOG_PATH
+
+
+func after_all() -> void:
+	PlaytestLog.default_path = _saved_log_path
+	if FileAccess.file_exists(TEST_LOG_PATH):
+		DirAccess.remove_absolute(TEST_LOG_PATH)
 
 
 func _cruiser() -> ShipBuild:

@@ -5,11 +5,14 @@ extends Control
 ## An allowed launch resolves the run and opens the run screen over this one,
 ## with build input switched off. The run screen's Rebuild and Retry same seed
 ## close it and hand control back here with the layout unchanged.
+## Each finished run is appended to the playtest log (dev tooling); the run
+## screen's optional feedback buttons tag that run's line.
 
 const MISSION_PATH: String = "res://data/missions/cargo_run.tres"
 const RUN_SCREEN_SCENE: PackedScene = preload("res://scenes/run/run_screen.tscn")
 const HINT_TEXT: String = "Drag parts onto the grid. Drag off or right-click to remove."
 const RETRY_TEXT: String = "Retry: the next launch reuses seed %d."
+const LOG_PATH_TEXT: String = "Playtest log: %s"
 ## Readout colors: green when met with margin, amber at no margin (and for the
 ## uncountered fuel card lines), red when short.
 const OK_COLOR: Color = Color(0.49, 0.77, 0.35)
@@ -29,6 +32,10 @@ var run_seed: int = 0
 var _run_screen: RunScreen = null
 ## True after Retry same seed: the next launch keeps run_seed.
 var _retry_seed: bool = false
+## Set before _ready to log elsewhere; otherwise one is made at the default path.
+var playtest_log: PlaytestLog = null
+## The open run's playtest record, written when its outcome appears.
+var _pending_record: Dictionary = {}
 
 @onready var _grid: GridView = %GridView
 @onready var _palette: PaletteView = %PaletteView
@@ -41,6 +48,7 @@ var _retry_seed: bool = false
 @onready var _fuel_readout: Label = %FuelReadout
 ## Uncountered fuel cards and their counters; hidden when there are none.
 @onready var _fuel_cards_readout: Label = %FuelCardsReadout
+@onready var _log_path_label: Label = %LogPathLabel
 
 
 func _ready() -> void:
@@ -54,6 +62,10 @@ func _ready() -> void:
 	_grid.show_build(build)
 	_refresh_readout()
 	_status_label.text = _idle_status()
+	if playtest_log == null:
+		playtest_log = PlaytestLog.new()
+	_log_path_label.text = LOG_PATH_TEXT % playtest_log.absolute_path()
+	print(_log_path_label.text)
 
 
 ## The open run screen, or null while building.
@@ -91,7 +103,29 @@ func _on_launch_pressed() -> void:
 	add_child(_run_screen)
 	_run_screen.rebuild_requested.connect(_on_rebuild_requested)
 	_run_screen.retry_requested.connect(_on_retry_requested)
+	_run_screen.outcome_shown.connect(_on_outcome_shown)
+	_run_screen.difficulty_tagged.connect(_on_difficulty_tagged)
 	_run_screen.start(build, result, mission)
+	# After start(): a logging fault must never keep the run from playing.
+	_pending_record = PlaytestRecord.build(build, mission, result, {
+		"timestamp": PlaytestLog.utc_timestamp(),
+		"commit": PlaytestLog.read_git_commit(),
+		"session_id": playtest_log.session_id,
+		"attempt": playtest_log.next_attempt(),
+	})
+
+
+## The run finished playing: log it once, untagged.
+func _on_outcome_shown() -> void:
+	if _pending_record.is_empty():
+		return
+	playtest_log.append(_pending_record)
+
+
+func _on_difficulty_tagged(tag: String) -> void:
+	if _pending_record.is_empty():
+		return
+	playtest_log.set_difficulty(_pending_record["session_id"], _pending_record["attempt"], tag)
 
 
 func _on_rebuild_requested() -> void:
@@ -111,6 +145,7 @@ func _close_run_screen() -> void:
 	remove_child(_run_screen)
 	_run_screen.queue_free()
 	_run_screen = null
+	_pending_record = {}
 	_input_layer.enabled = true
 	_grid.show_build(build)
 	_refresh_readout()

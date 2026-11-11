@@ -5,5 +5,6 @@
 	"suffix": ".gd",
 	"should_exit": true,
 	"should_exit_on_success": true,
-	"log_level": 1
+	"log_level": 1,
+	"pre_run_script": "res://test/playtest_hook.gd"
 }

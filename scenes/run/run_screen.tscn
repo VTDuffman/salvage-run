@@ -163,3 +163,31 @@ unique_name_in_owner = true
 layout_mode = 2
 theme_override_font_sizes/font_size = 8
 text = "RETRY SAME SEED"
+
+[node name="FeedbackRow" type="HBoxContainer" parent="Layout/LogColumn/OutcomePanel/OutcomeBox"]
+layout_mode = 2
+theme_override_constants/separation = 4
+alignment = 1
+
+[node name="FeedbackLabel" type="Label" parent="Layout/LogColumn/OutcomePanel/OutcomeBox/FeedbackRow"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 8
+text = "FEEL:"
+
+[node name="TooHardButton" type="Button" parent="Layout/LogColumn/OutcomePanel/OutcomeBox/FeedbackRow"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 8
+text = "TOO HARD"
+
+[node name="FairButton" type="Button" parent="Layout/LogColumn/OutcomePanel/OutcomeBox/FeedbackRow"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 8
+text = "FAIR"
+
+[node name="TooEasyButton" type="Button" parent="Layout/LogColumn/OutcomePanel/OutcomeBox/FeedbackRow"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 8
+text = "TOO EASY"
