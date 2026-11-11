@@ -1,0 +1,52 @@
+- id: "1"
+  title: Project skeleton with pixel-art settings and a 3×3 grid on screen
+  description: >-
+    Set up pixel-art render settings and show the Cruiser's empty 3×3 grid,
+    top-down with front at the top (SPEC Constraints). Placeholder tiles only.
+  done_checkpoint: true
+  invoke_dev_with: >-
+    Report every project.godot setting changed, with old and new values.
+- id: "2"
+  title: Part, card, and mission data files
+  description: >-
+    Define the six parts, eight cards, and the mission as data, with the
+    starting values from parts-and-cards.md (CAP-8). No rules logic yet.
+- id: "3"
+  title: Part palette, drag-and-drop placement, and launch gate
+  description: >-
+    Palette built from the part data offers unlimited copies; parts can be
+    placed, moved, and removed on the grid (CAP-1). Launch is refused without
+    a rear-row thruster (CAP-2).
+  invoke_dev_with: >-
+    Mouse only; keep input handling in its own layer so touch can be added
+    later.
+- id: "4"
+  title: Run resolver as pure logic with GUT tests
+  description: >-
+    Seeded, scene-free resolver implementing resolution-rules.md: card
+    shuffle, hits, shields, fuel, destruction, and win/loss (CAP-3, CAP-4,
+    CAP-5). GUT tests cover every success criterion of those capabilities.
+  spec_checkpoint: true
+  done_checkpoint: true
+  invoke_dev_with: >-
+    Install GUT under addons/gut/ and record the verified headless test
+    command in AGENTS.md. The resolver returns per-card events that playback
+    can render without re-deriving rules.
+- id: "5"
+  title: Run playback scene with log and speed controls
+  description: >-
+    Play resolver events one card at a time with a short animation, a log
+    line per card, and play/pause/fast-forward (CAP-6).
+- id: "6"
+  title: Win/loss screen with Rebuild and Retry same seed
+  description: >-
+    Show the outcome and offer Rebuild (new seed) and Retry same seed; both
+    return to the build screen with the previous layout (CAP-7).
+  done_checkpoint: true
+- id: "7"
+  title: Tuning pass using the data files
+  description: >-
+    Tune data values until the success signal is reachable, especially three
+    distinct winning builds and a 1–2 minute cycle (CAP-8, Success signal).
+  invoke_dev_with: >-
+    Change data values only. Any rule change goes back to the spec first.
