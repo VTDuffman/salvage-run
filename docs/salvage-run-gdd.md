@@ -388,6 +388,8 @@ These items are identified but not yet decided:
 
 ## 15. Vertical Slice (First Build Target)
 
+> Detailed slice rules now live in the spec: `_bmad-output/specs/spec-vertical-slice/SPEC.md` and its companions.
+
 ### Purpose
 The slice exists to answer one question before anything else gets built:
 
