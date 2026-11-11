@@ -41,8 +41,8 @@ A vision bet to validate cheaply: **is it fun to build a ship and then watch a p
   - **intent:** After the run, a win/loss screen offers Rebuild (new seed) and Retry same seed (same card order); both return to the build screen with the previous layout, and the next launch uses the current ship including edits.
   - **success:** After Retry same seed, the next run's card order matches the previous run's; after Rebuild, a new seed is used; in both cases the grid shows the previous layout.
 - **CAP-8**
-  - **intent:** Parts, cards, and mission parameters live in data files so balance is tunable without touching game logic.
-  - **success:** Changing a part's HP, the fuel per tank, or the mission's cargo requirement in its data file changes run behavior with no code edit.
+  - **intent:** Parts, cards, and mission parameters live in data files so balance is tunable in the Godot inspector without touching game logic.
+  - **success:** Changing a part's HP, the fuel per tank, or the mission's cargo requirement in the inspector changes run behavior with no code edit.
 
 ## Constraints
 
@@ -51,7 +51,7 @@ A vision bet to validate cheaply: **is it fun to build a ship and then watch a p
 - No player input between launch and result except playback speed.
 - All randomness (card shuffle, random lanes) flows from the run seed.
 - Game rules live in plain logic classes with no Node/scene dependencies; scenes only display results.
-- Content in Godot Resources or JSON, not hard-coded.
+- Content in Godot Resources (`.tres`), editable in the Godot inspector — not JSON, not hard-coded.
 - Godot 4.7 / GDScript, desktop only; layout stays readable at a phone aspect ratio.
 - Mouse input only, with input handling isolated so touch can be added later.
 - Placeholder art (colored tiles, simple icons) under pixel-art render settings.
@@ -72,9 +72,3 @@ A vision bet to validate cheaply: **is it fun to build a ship and then watch a p
 ## Success signal
 
 After a week of play: (1) losses prompt an immediate rebuild; (2) the playback explains why a run failed; (3) at least three meaningfully different builds can win; (4) a build-plus-run cycle takes roughly 1–2 minutes; (5) at least one run produces a cascading failure that feels like a story. If 1 and 2 fail, revisit the passive-run premise before building anything else.
-
-## Assumptions
-
-- Every hit deals 1 damage.
-- Asteroid Field picks its two columns independently, so both may strike the same column.
-- Starting fuel is working tanks × 4; Fuel Leak's "2+ Fuel Tanks" counts working tanks.
