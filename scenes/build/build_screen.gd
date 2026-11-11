@@ -28,6 +28,7 @@ func _ready() -> void:
 
 func _on_build_changed() -> void:
 	_grid.show_build(build)
+	_status_label.text = HINT_TEXT
 
 
 func _on_launch_pressed() -> void:

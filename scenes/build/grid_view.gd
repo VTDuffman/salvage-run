@@ -4,8 +4,8 @@ extends GridContainer
 ## Row 0 is the front (top of screen); the last row is the rear.
 ## Display and hit-testing only: it never reads input or edits the build.
 
-const COLUMNS: int = 3
-const ROWS: int = 3
+const COLUMNS: int = ShipBuild.COLUMNS
+const ROWS: int = ShipBuild.ROWS
 const NO_CELL: Vector2i = Vector2i(-1, -1)
 
 @export var cell_size: int = 48

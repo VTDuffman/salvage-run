@@ -2,7 +2,7 @@
 title: 'Part palette, drag-and-drop placement, and launch gate'
 type: 'feature'
 created: '2026-11-10'
-status: 'in-progress'
+status: 'done'
 baseline_commit: 'e9937437eb5200be5775bfffcadee9c2385fd236'
 route: 'dispatch'
 review_loop_iteration: 0
@@ -81,8 +81,26 @@ context:
 - `cell_at` maps any point inside the grid's rect to a cell, so a point in a gap snaps to a cell (the rect is split into thirds). A point outside the rect returns (-1,-1).
 - `BuildMouseInput` reads mouse events in `_input`. The cells are `Panel`s with the default STOP mouse filter, so `_unhandled_input` would never see clicks on them. It marks an event handled only when it starts or ends a drag or removes a part. The ghost tile sits on its own `CanvasLayer` (layer 10).
 - Right-click is ignored while a left drag is active.
+- Review patches: the status line resets to the hint on every build change; `GridView` takes `COLUMNS`/`ROWS` from `ShipBuild`, and the input layer uses `GridView.NO_CELL`.
+- Verified after review: headless `--import` shows no errors or warnings, and `verify_story3.gd` passes 43 of 43, covering every row of the edge-case table. The `--write-movie` frame is legible at 640×360. project.godot: no settings changed.
 - `GridView.get_cell_text`/`get_cell_color` and `PaletteView.get_tile_color`/`entry_center`/`entry_count` exist so tests can compare the display with `ShipBuild`.
 
 ## Spec Change Log
 
 ## Review Triage Log
+
+- Status line goes stale after an edit (blind, edge, verification-gap) — medium, real: `_on_build_changed` never touched `_status_label`, so "Launch OK" stayed up after the rear thruster was removed. Patched: the status resets to the hint on every build change.
+- `COLUMNS`/`ROWS` and `NO_CELL` defined twice (blind) — low, real: `GridView` and `ShipBuild` each declared the grid size, and the view and the input layer each declared `NO_CELL`, so hit-testing could drift from the model. Patched: `GridView` takes its size from `ShipBuild`, and the input layer uses `GridView.NO_CELL`.
+- No repo-resident tests; the scratchpad script won't last (blind, verification-gap) — real, deferred: GUT arrives in story 4. Port the `ShipBuild` checks and the scene drag checks then.
+- Right-click during a drag is untested (verification-gap) — low, real gap: deferred along with the GUT port.
+- Drag stuck after a focus loss or a release outside the window (blind, edge) — low, rejected: Windows captures the mouse while a button is held, so only an alt-tab mid-drag leaves it stuck. That's rare, and the fix adds new focus handling.
+- A stale drag lets the next press keep the old part (edge) — low, rejected: only reachable after the focus-loss case above.
+- Second left press during a drag (blind) — false: only left presses start a drag, and a second left press can't arrive before the release.
+- No missing-mission guard (blind, edge) — false: a missing or mistyped `.tres` fails loudly as soon as the screen opens, which is acceptable.
+- Unassigned `palette`/`grid` exports (edge) — false: the scene assigns both, and a misconfigured scene fails loudly on the first press.
+- No snapshot or copy for story 4 (blind) — false: there's no resolver yet, so nothing mutates the build. Story 4 decides how it reads the build.
+- The story records no verification evidence (blind) — rejected: the fix would be editing this spec, and the finalize step records the evidence.
+- The acceptance criteria don't cover the decided behavior (blind) — rejected: the fix would be editing this spec, and the edge-case table covers every decision.
+- `entry_center` has no bounds check; test helpers widen the view API (blind, edge) — low, rejected: only the verify script calls them, and the fix only adds guards.
+- A touch layer would need its own drop-to-command mapping (edge, claim) — low, rejected: the shared surface is the `ShipBuild` commands, and the mapping is about ten lines. Touch is a non-goal.
+- The verify script prints PASS even when a placement failed (verification-gap) — low, rejected: the script isn't committed, and its failure count stays correct.

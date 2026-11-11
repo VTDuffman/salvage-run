@@ -7,8 +7,6 @@ extends Node
 ## Emitted after every command that edits the build.
 signal build_changed
 
-const NO_CELL: Vector2i = Vector2i(-1, -1)
-
 @export var palette: PaletteView
 @export var grid: GridView
 ## Size of the tile that follows the cursor while dragging.
@@ -18,8 +16,8 @@ const NO_CELL: Vector2i = Vector2i(-1, -1)
 var build: ShipBuild
 
 var _drag_part: PartData = null
-## Grid cell the drag started from, or NO_CELL when it came from the palette.
-var _drag_from: Vector2i = NO_CELL
+## Grid cell the drag started from, or GridView.NO_CELL when it came from the palette.
+var _drag_from: Vector2i = GridView.NO_CELL
 var _ghost_layer: CanvasLayer
 var _ghost: ColorRect
 
@@ -64,7 +62,7 @@ func _input(event: InputEvent) -> void:
 
 func _begin_drag(pos: Vector2) -> void:
 	var cell: Vector2i = grid.cell_at(pos)
-	if cell != NO_CELL:
+	if cell != GridView.NO_CELL:
 		var placed: PartData = build.get_part(cell)
 		if placed == null:
 			return
@@ -75,7 +73,7 @@ func _begin_drag(pos: Vector2) -> void:
 		if offered == null:
 			return
 		_drag_part = offered
-		_drag_from = NO_CELL
+		_drag_from = GridView.NO_CELL
 	_ghost.color = _drag_part.color
 	_ghost.visible = true
 	_move_ghost(pos)
@@ -88,16 +86,16 @@ func _end_drag(pos: Vector2) -> void:
 	var part: PartData = _drag_part
 	var from: Vector2i = _drag_from
 	_drag_part = null
-	_drag_from = NO_CELL
+	_drag_from = GridView.NO_CELL
 	_ghost.visible = false
 	get_viewport().set_input_as_handled()
 
 	var to: Vector2i = grid.cell_at(pos)
-	if from == NO_CELL:
-		if to == NO_CELL:
+	if from == GridView.NO_CELL:
+		if to == GridView.NO_CELL:
 			return
 		build.place(to, part)
-	elif to == NO_CELL:
+	elif to == GridView.NO_CELL:
 		build.remove(from)
 	elif to == from:
 		return
@@ -108,7 +106,7 @@ func _end_drag(pos: Vector2) -> void:
 
 func _remove_at(pos: Vector2) -> void:
 	var cell: Vector2i = grid.cell_at(pos)
-	if cell == NO_CELL or build.get_part(cell) == null:
+	if cell == GridView.NO_CELL or build.get_part(cell) == null:
 		return
 	build.remove(cell)
 	get_viewport().set_input_as_handled()
