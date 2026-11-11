@@ -42,8 +42,8 @@ func _build(layout: Dictionary[Vector2i, PartData]) -> ShipBuild:
 	return build
 
 
-## A hand-made card: a fixed-lane Pirate Ambush (one hit per front column,
-## left to right) unless another kind is given.
+## A hand-made card of [param kind] that is never countered by parts
+## (counter_threshold 99). A PIRATE_AMBUSH card's hit i goes down front column i.
 func _card(kind: CardData.Kind, hits: int, damage_per_hit: int) -> CardData:
 	var card: CardData = CardData.new()
 	card.kind = kind
@@ -154,7 +154,7 @@ func test_card_order_is_a_permutation_of_the_pool() -> void:
 	assert_gt(orders.size(), 1, "different seeds should give different orders")
 
 
-func test_random_lanes_follow_the_seed() -> void:
+func test_debris_strike_reaches_both_flanks_and_all_rows() -> void:
 	var pool: Array[CardData] = [DEBRIS_STRIKE]
 	var mission: MissionData = _mission(pool)
 	var build: ShipBuild = _build(_full_layout())
@@ -211,7 +211,6 @@ func test_pirate_ambush_uncountered_hits_each_front_column() -> void:
 func test_destroyed_gun_no_longer_counters() -> void:
 	var layout: Dictionary[Vector2i, PartData] = {Vector2i(0, 0): GUN, REAR_MIDDLE: THRUSTER}
 	var smash: CardData = _card(CardData.Kind.PIRATE_AMBUSH, 1, 2)
-	smash.counter_threshold = 99
 	var pool: Array[CardData] = [smash, PIRATE_AMBUSH]
 	var build: ShipBuild = _build(layout)
 	var mission: MissionData = _mission(pool)
@@ -472,6 +471,38 @@ func test_exhausted_shield_lets_damage_through() -> void:
 	assert_false(event.countered)
 
 
+func test_overkill_damage_stops_at_zero_hp() -> void:
+	var layout: Dictionary[Vector2i, PartData] = {Vector2i(0, 0): CARGO_HOLD, REAR_MIDDLE: THRUSTER}
+	var event: RunResult.CardEvent = _resolve_one(_card(CardData.Kind.PIRATE_AMBUSH, 1, 3), layout)
+	var hit: RunResult.HitEvent = event.hits[0]
+	assert_eq(hit.struck_cell, Vector2i(0, 0))
+	assert_eq(hit.absorbed, 0)
+	assert_eq(hit.damage_to_part, 2)
+	assert_eq(hit.part_hp_after, 0)
+	assert_true(hit.destroyed)
+	assert_eq(event.destroyed_cells, [Vector2i(0, 0)] as Array[Vector2i])
+
+
+func test_shield_destroyed_mid_card_stops_covering() -> void:
+	# Hit 1 drains the weak shield on (0,0), hit 2 destroys it, hit 3 on (2,0),
+	# which it covered, takes part damage.
+	var weak_shield: PartData = _part(PartData.Kind.SHIELD, 1, 1)
+	var layout: Dictionary[Vector2i, PartData] = {
+		Vector2i(0, 0): HULL_PLATING, Vector2i(1, 0): weak_shield, Vector2i(2, 0): HULL_PLATING,
+		REAR_MIDDLE: THRUSTER,
+	}
+	var event: RunResult.CardEvent = _resolve_one(_card(CardData.Kind.PIRATE_AMBUSH, 3, 1), layout)
+	assert_eq(event.hits[0].shield_cell, Vector2i(1, 0))
+	assert_eq(event.hits[0].absorbed, 1)
+	assert_eq(event.hits[1].struck_cell, Vector2i(1, 0))
+	assert_true(event.hits[1].destroyed)
+	assert_eq(event.hits[2].struck_cell, Vector2i(2, 0))
+	assert_eq(event.hits[2].absorbed, 0)
+	assert_eq(event.hits[2].shield_cell, NO_CELL)
+	assert_eq(event.hits[2].damage_to_part, 1)
+	assert_eq(event.destroyed_cells, [Vector2i(1, 0)] as Array[Vector2i])
+
+
 func test_partial_absorption_of_a_multi_damage_hit() -> void:
 	var layout: Dictionary[Vector2i, PartData] = {Vector2i(0, 0): SHIELD, REAR_MIDDLE: THRUSTER}
 	var hit: RunResult.HitEvent = _resolve_one(_card(CardData.Kind.PIRATE_AMBUSH, 1, 3), layout).hits[0]
@@ -640,6 +671,8 @@ func test_loss_priority_no_thruster_over_cargo() -> void:
 	var result: RunResult = RunResolver.resolve(_build(layout), _mission(pool, 2, 0), 1)
 	assert_eq(result.events[0].destroyed_cells.size(), 3)
 	assert_eq(result.loss_reason, RunResult.LossReason.NO_THRUSTER)
+	assert_false(result.won)
+	assert_eq(result.events.size(), 1)
 
 
 func test_loss_priority_out_of_fuel_over_cargo() -> void:
@@ -653,6 +686,8 @@ func test_loss_priority_no_thruster_over_out_of_fuel() -> void:
 	var layout: Dictionary[Vector2i, PartData] = {Vector2i(0, 0): CARGO_HOLD}
 	var result: RunResult = RunResolver.resolve(_build(layout), _mission(_calm_pool(2), 2, 1), 1)
 	assert_eq(result.loss_reason, RunResult.LossReason.NO_THRUSTER)
+	assert_false(result.won)
+	assert_eq(result.events.size(), 1)
 
 
 # --- CAP-8: data-driven numbers -----------------------------------------------

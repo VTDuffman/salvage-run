@@ -2,7 +2,7 @@
 title: 'Run resolver as pure logic with GUT tests'
 type: 'feature'
 created: '2026-11-10'
-status: 'in-progress'
+status: 'done'
 baseline_commit: '2b8862316c30d6b745b1c6d60686ca37a918de87'
 route: 'dispatch'
 review_loop_iteration: 0
@@ -89,7 +89,28 @@ context:
 - `fuel_after` is not clamped: a negative value is the "would go below 0" loss. The tank-loss fuel cap is applied right after each destruction.
 - Shields are any working part with `shield_capacity` > 0. Countered checks count working parts of the countering kind (Gun, Fuel Tank, Thruster) against `counter_threshold`.
 - GUT skips a test script that fails to parse, logs only a warning, and still exits 0. This is recorded in AGENTS.md.
+- Verified after review: headless `--import` clean; GUT runs 4 scripts, 66 tests, 1,072 asserts, all passing, exit code 0. `test_suite_integrity.gd` now fails the run when any `test_*.gd` can't load as a `GutTest`.
 
 ## Spec Change Log
 
 ## Review Triage Log
+
+- Overkill damage cap untested (verification-gap) — low, real: deleting the `break` in `_strike` passes every test; playback could show negative HP once `damage_per_hit` is tuned. Patched: overkill test added.
+- Parse-failed test script skipped while GUT exits 0 (verification-gap, blind) — medium, real: a `RunResult` rename could drop the whole resolver suite with a green exit code. Patched: `test_suite_integrity.gd` fails unless every `test_*.gd` loads as a `GutTest`.
+- `_card` doc comment wrong; duplicate `counter_threshold = 99` (blind) — low, real. Patched: comment corrected, line deleted.
+- Loss-priority tests skip `won`/`events.size()`; gate test skips `launch_refusal()` (blind) — low, real. Patched: asserts added.
+- Shield destroyed mid-card not shown to stop covering later hits of the same card (blind) — low, real gap (code uses `_is_working`, correct today). Patched: test added. It documents the behavior but can't tell "destroyed" from "exhausted", because a shield covers its own cell and so is always at 0 capacity when it dies. It becomes a real guard if story 7 drops self-coverage.
+- `test_random_lanes_follow_the_seed` misnamed (blind) — low, real. Patched: renamed.
+- GUT addon excluded from the review diff (blind) — low, rejected: excluded deliberately as an unmodified copy of the v9.7.1 release archive, recorded in the notes.
+- `HitEvent` names only the first absorbing shield (blind) — low, rejected: only possible when one hit deals 2+ damage across two shields, which no card does; the fix adds public surface.
+- `fuel_after` merges drain, cap and burn (blind) — low, rejected: playback can get each part by subtracting the previous `fuel_after`, `extra_fuel_lost` and `fuel_per_card`. That is arithmetic, not re-deriving a rule.
+- No golden seed test (blind) — low, rejected: no seed outlives a session (save/load is a non-goal); same-process determinism is tested.
+- No global-RNG isolation test (blind) — false: the resolver reads only its own seeded `_rng`; there is no `randi()`/`shuffle()` call.
+- Mutation test is weak (blind) — false: the resolver writes only to its own dictionaries and never assigns to a Resource or `ShipBuild`.
+- Empty or null `card_pool` (blind, edge) — low, rejected: only reachable by a data mis-edit; a null card fails loudly, and the existing deferred "validate MissionData on load" item covers it.
+- `_seed_for_order` continues after `fail_test` (blind, edge) — low, rejected: it only adds noise to a test that has already failed.
+- Unhandled future `CardData.Kind` (edge) — low, rejected: the enum is append-only and a new kind needs resolver code anyway.
+- `counter_threshold` 0 always counters (edge) — low, rejected: every shipped card has 1 or 2, and "needs 0" being always met is a consistent reading.
+- Pirate Ambush `hits` ≠ grid width wraps (edge) — low, rejected: `CardData` documents that the count must match the grid width.
+- `_resolve` reused on one instance keeps stale state (edge) — false: `resolve()` always creates a fresh `RunResolver`; `_resolve` is private.
+- Resolver ignores `CardData.direction` (verification-gap, other) — low, rejected: by design, `kind` picks behavior (`card_data.gd` doc); `direction` is descriptive for playback.
