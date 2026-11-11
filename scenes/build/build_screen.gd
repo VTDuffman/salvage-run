@@ -31,6 +31,8 @@ var _retry_seed: bool = false
 @onready var _mission_lines: Label = %MissionLines
 @onready var _cargo_readout: Label = %CargoReadout
 @onready var _fuel_readout: Label = %FuelReadout
+## Uncountered fuel cards and their counters; hidden when there are none.
+@onready var _fuel_cards_readout: Label = %FuelCardsReadout
 
 
 func _ready() -> void:
@@ -114,6 +116,10 @@ func _refresh_readout() -> void:
 			OK_COLOR if MissionReadout.cargo_met(build, mission) else WARNING_COLOR)
 	_fuel_readout.add_theme_color_override("font_color",
 			OK_COLOR if MissionReadout.fuel_met(build, mission) else WARNING_COLOR)
+	var fuel_card_lines: Array[String] = MissionReadout.fuel_card_lines(build, mission)
+	_fuel_cards_readout.text = "\n".join(fuel_card_lines)
+	_fuel_cards_readout.visible = not fuel_card_lines.is_empty()
+	_fuel_cards_readout.add_theme_color_override("font_color", WARNING_COLOR)
 
 
 func _idle_status() -> String:

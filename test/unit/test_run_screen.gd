@@ -427,19 +427,32 @@ func test_readout_updates_on_build_changed() -> void:
 	var warning: Color = constants["WARNING_COLOR"]
 	var ok: Color = constants["OK_COLOR"]
 	assert_ne(warning, ok)
+	var fuel_cards: Label = screen.get_node("%FuelCardsReadout") as Label
 	assert_eq(cargo.text, "Cargo 0/2")
-	assert_eq(fuel.text, "Fuel 0 / 8 needed")
+	assert_eq(fuel.text, "Fuel 0 / 11 needed", "empty build counters neither fuel card")
 	assert_eq(cargo.get_theme_color("font_color"), warning, "empty build: cargo short")
 	assert_eq(fuel.get_theme_color("font_color"), warning, "empty build: fuel short")
+	assert_true(fuel_cards.visible)
+	assert_eq(fuel_cards.text, "+2 Fuel Leak: counter with 2 Fuel Tanks (have 0)\n"
+			+ "+1 Gravity Well: counter with 2 Thrusters in rear row (have 0)")
+	assert_eq(fuel_cards.get_theme_color("font_color"), warning, "uncountered fuel cards are a warning")
 
 	build.place(Vector2i(0, 0), CARGO_HOLD)
 	build.place(Vector2i(0, 1), FUEL_TANK)
 	build.place(Vector2i(2, 1), FUEL_TANK)
 	input.build_changed.emit()
 	assert_eq(cargo.text, "Cargo 1/2")
-	assert_eq(fuel.text, "Fuel 8 / 8 needed")
+	assert_eq(fuel.text, "Fuel 8 / 9 needed", "Gravity Well still uncountered")
 	assert_eq(cargo.get_theme_color("font_color"), warning, "short cargo shows in the warning color")
+	assert_eq(fuel.get_theme_color("font_color"), warning, "8 fuel is short of 9")
+	assert_eq(fuel_cards.text, "+1 Gravity Well: counter with 2 Thrusters in rear row (have 0)")
+
+	build.place(Vector2i(0, 2), THRUSTER)
+	build.place(Vector2i(1, 2), THRUSTER)
+	input.build_changed.emit()
+	assert_eq(fuel.text, "Fuel 8 / 8 needed")
 	assert_eq(fuel.get_theme_color("font_color"), ok, "met fuel shows in the ok color")
+	assert_false(fuel_cards.visible, "no uncountered fuel cards: line hidden")
 
 	build.place(Vector2i(1, 0), CARGO_HOLD)
 	build.move(Vector2i(2, 1), Vector2i(2, 0))
@@ -450,8 +463,10 @@ func test_readout_updates_on_build_changed() -> void:
 
 	build.remove(Vector2i(2, 0))
 	input.build_changed.emit()
-	assert_eq(fuel.text, "Fuel 4 / 8 needed")
+	assert_eq(fuel.text, "Fuel 4 / 10 needed", "one tank no longer counters Fuel Leak")
 	assert_eq(fuel.get_theme_color("font_color"), warning)
+	assert_true(fuel_cards.visible)
+	assert_eq(fuel_cards.text, "+2 Fuel Leak: counter with 2 Fuel Tanks (have 1)")
 
 
 func test_launch_refused_when_cargo_short() -> void:

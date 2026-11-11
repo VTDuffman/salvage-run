@@ -6,6 +6,14 @@ extends RefCounted
 ## never modified. All randomness comes from one RandomNumberGenerator seeded
 ## with the run seed: the card shuffle first, then lane picks in card order.
 
+## The part kind whose working count counters each fuel-drain card. With
+## fuel_card_countered(), the one counter rule the resolver and MissionReadout
+## share.
+const FUEL_CARD_COUNTERS: Dictionary[CardData.Kind, PartData.Kind] = {
+	CardData.Kind.FUEL_LEAK: PartData.Kind.FUEL_TANK,
+	CardData.Kind.GRAVITY_WELL: PartData.Kind.THRUSTER,
+}
+
 var _mission: MissionData
 var _rng: RandomNumberGenerator = RandomNumberGenerator.new()
 ## Occupied cells at launch, front row first, left to right.
@@ -50,6 +58,22 @@ func _resolve(build: ShipBuild, mission: MissionData, run_seed: int) -> RunResul
 	return result
 
 
+## True for cards that drain extra fuel unless countered (Fuel Leak, Gravity Well).
+static func is_fuel_card(card: CardData) -> bool:
+	return FUEL_CARD_COUNTERS.has(card.kind)
+
+
+## The part kind that counters a fuel card. Only valid when is_fuel_card(card).
+static func fuel_counter_kind(card: CardData) -> PartData.Kind:
+	return FUEL_CARD_COUNTERS[card.kind]
+
+
+## True when [param working] working parts of fuel_counter_kind(card) counter
+## [param card].
+static func fuel_card_countered(card: CardData, working: int) -> bool:
+	return working >= card.counter_threshold
+
+
 ## Fisher-Yates shuffle driven by the run RNG (never the global RNG).
 func _shuffled(pool: Array[CardData]) -> Array[CardData]:
 	var order: Array[CardData] = pool.duplicate()
@@ -69,7 +93,30 @@ func _resolve_card(card: CardData) -> RunResult.CardEvent:
 	for cell: Vector2i in _cells:
 		_shield_left[cell] = _parts[cell].shield_capacity if _is_working(cell) else 0
 
-	# 2. Apply the card's countered or uncountered effect.
+	# 2. Apply the card's countered or uncountered effect. Fuel cards are
+	# routed by FUEL_CARD_COUNTERS, the same map MissionReadout reads.
+	if is_fuel_card(card):
+		_fuel_drain_card(event, card)
+	else:
+		_apply_card_effect(event, card)
+
+	# 3. Burn fuel.
+	_fuel -= _mission.fuel_per_card
+	event.fuel_after = _fuel
+
+	# 4. Check for loss, in priority order.
+	event.cargo_holds_after = _working_count(PartData.Kind.CARGO_HOLD)
+	if _working_count(PartData.Kind.THRUSTER) == 0:
+		event.loss_reason = RunResult.LossReason.NO_THRUSTER
+	elif _fuel < 0:
+		event.loss_reason = RunResult.LossReason.OUT_OF_FUEL
+	elif event.cargo_holds_after < _mission.cargo_required:
+		event.loss_reason = RunResult.LossReason.CARGO_LOST
+	return event
+
+
+## Every card that is not a fuel card: hits, shields and counters.
+func _apply_card_effect(event: RunResult.CardEvent, card: CardData) -> void:
 	match card.kind:
 		CardData.Kind.PIRATE_AMBUSH:
 			if _working_count(PartData.Kind.GUN) >= card.counter_threshold:
@@ -99,32 +146,14 @@ func _resolve_card(card: CardData) -> RunResult.CardEvent:
 					if _hp[cell] > 0:
 						_strike(event, card, RunResult.Side.NONE, -1, cell)
 			event.countered = _absorbed_without_damage(event)
-		CardData.Kind.FUEL_LEAK:
-			_fuel_drain_card(event, card, PartData.Kind.FUEL_TANK)
-		CardData.Kind.GRAVITY_WELL:
-			_fuel_drain_card(event, card, PartData.Kind.THRUSTER)
 		CardData.Kind.CALM_SPACE:
 			pass
 
-	# 3. Burn fuel.
-	_fuel -= _mission.fuel_per_card
-	event.fuel_after = _fuel
 
-	# 4. Check for loss, in priority order.
-	event.cargo_holds_after = _working_count(PartData.Kind.CARGO_HOLD)
-	if _working_count(PartData.Kind.THRUSTER) == 0:
-		event.loss_reason = RunResult.LossReason.NO_THRUSTER
-	elif _fuel < 0:
-		event.loss_reason = RunResult.LossReason.OUT_OF_FUEL
-	elif event.cargo_holds_after < _mission.cargo_required:
-		event.loss_reason = RunResult.LossReason.CARGO_LOST
-	return event
-
-
-## Fuel Leak and Gravity Well: countered by enough working parts of
-## [param counter_kind], otherwise the card drains extra fuel.
-func _fuel_drain_card(event: RunResult.CardEvent, card: CardData, counter_kind: PartData.Kind) -> void:
-	if _working_count(counter_kind) >= card.counter_threshold:
+## Fuel Leak and Gravity Well: countered by enough working parts of the
+## card's counter kind, otherwise the card drains extra fuel.
+func _fuel_drain_card(event: RunResult.CardEvent, card: CardData) -> void:
+	if fuel_card_countered(card, _working_count(fuel_counter_kind(card))):
 		event.countered = true
 		return
 	event.extra_fuel_lost = card.extra_fuel_loss

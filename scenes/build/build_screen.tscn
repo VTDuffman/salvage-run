@@ -123,6 +123,13 @@ unique_name_in_owner = true
 layout_mode = 2
 theme_override_font_sizes/font_size = 8
 
+[node name="FuelCardsReadout" type="Label" parent="MissionBox"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+theme_override_font_sizes/font_size = 8
+autowrap_mode = 3
+
 [node name="LaunchBar" type="HBoxContainer" parent="."]
 layout_mode = 1
 anchors_preset = 12

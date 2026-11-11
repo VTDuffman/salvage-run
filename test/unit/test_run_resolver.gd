@@ -384,6 +384,101 @@ func test_gravity_well_ignores_thruster_outside_rear_row() -> void:
 	assert_eq(event.fuel_after, 3)
 
 
+func test_fuel_card_counters_use_the_shared_rule() -> void:
+	assert_true(RunResolver.is_fuel_card(FUEL_LEAK))
+	assert_true(RunResolver.is_fuel_card(GRAVITY_WELL))
+	for card: CardData in [PIRATE_AMBUSH, ASTEROID_FIELD, DEBRIS_STRIKE, REAR_RAIDER, SOLAR_FLARE, CALM_SPACE]:
+		assert_false(RunResolver.is_fuel_card(card), card.display_name)
+	assert_eq(RunResolver.fuel_counter_kind(FUEL_LEAK), PartData.Kind.FUEL_TANK)
+	assert_eq(RunResolver.fuel_counter_kind(GRAVITY_WELL), PartData.Kind.THRUSTER)
+	assert_false(RunResolver.fuel_card_countered(FUEL_LEAK, FUEL_LEAK.counter_threshold - 1))
+	assert_true(RunResolver.fuel_card_countered(FUEL_LEAK, FUEL_LEAK.counter_threshold))
+
+
+## The resolver's countered flag on a fuel card resolved first (nothing yet
+## destroyed) matches what MissionReadout reports for the same build.
+func test_readout_and_resolver_agree_on_fuel_card_counters() -> void:
+	var rng: RandomNumberGenerator = RandomNumberGenerator.new()
+	rng.seed = 7
+	var options: Array[PartData] = [THRUSTER, FUEL_TANK, CARGO_HOLD, null]
+	for i: int in 200:
+		var build: ShipBuild = _random_build(rng, options)
+		for card: CardData in [FUEL_LEAK, GRAVITY_WELL]:
+			var pool: Array[CardData] = [card]
+			var event: RunResult.CardEvent = RunResolver.resolve(build, _mission(pool), 1).events[0]
+			var readout_uncountered: bool = card in MissionReadout.uncountered_fuel_cards(build, _mission(pool))
+			assert_eq(event.countered, not readout_uncountered, "%s on build %d" % [card.display_name, i])
+			assert_eq(event.extra_fuel_lost, card.extra_fuel_loss if readout_uncountered else 0)
+		# The full Cargo Run under several seeds: a fuel card resolved before any
+		# part is destroyed matches the readout, whatever its position.
+		var uncountered: Array[CardData] = MissionReadout.uncountered_fuel_cards(build, CARGO_RUN)
+		for run_seed: int in 5:
+			var result: RunResult = RunResolver.resolve(build, CARGO_RUN, run_seed)
+			for event: RunResult.CardEvent in result.events:
+				if RunResolver.is_fuel_card(event.card):
+					assert_eq(event.countered, not event.card in uncountered,
+							"%s, build %d, seed %d" % [event.card.display_name, i, run_seed])
+				if not event.destroyed_cells.is_empty():
+					break
+
+
+## Investigation: a build whose readout says fuel is met with no uncountered
+## fuel cards only runs out of fuel when damage changes the launch picture:
+## a Fuel Tank is destroyed (the fuel cap drops) or a fuel card that was
+## countered at launch drains extra fuel because its counter part was destroyed.
+func test_met_fuel_runs_out_only_after_damage_to_fuel_parts() -> void:
+	var mission: MissionData = CARGO_RUN.duplicate() as MissionData
+	mission.cargo_required = 0
+	var rng: RandomNumberGenerator = RandomNumberGenerator.new()
+	rng.seed = 2026
+	var options: Array[PartData] = [THRUSTER, FUEL_TANK, CARGO_HOLD, SHIELD, HULL_PLATING, GUN, null]
+	var met_builds: int = 0
+	var out_of_fuel: int = 0
+	var after_tank_loss: int = 0
+	for i: int in 2000:
+		var build: ShipBuild = _random_build(rng, options)
+		if not MissionReadout.fuel_met(build, mission) \
+				or not MissionReadout.uncountered_fuel_cards(build, mission).is_empty():
+			continue
+		met_builds += 1
+		for run_seed: int in 20:
+			var result: RunResult = RunResolver.resolve(build, mission, run_seed)
+			if result.loss_reason != RunResult.LossReason.OUT_OF_FUEL:
+				continue
+			out_of_fuel += 1
+			var label: String = "build %d seed %d" % [i, run_seed]
+			var extra_drained: int = 0
+			var destroyed: Array[PartData.Kind] = []
+			for event: RunResult.CardEvent in result.events:
+				if event.extra_fuel_lost > 0:
+					extra_drained += event.extra_fuel_lost
+					assert_has(destroyed, RunResolver.fuel_counter_kind(event.card),
+							"%s: a launch-countered fuel card drained only after its counter part was destroyed" % label)
+				for cell: Vector2i in event.destroyed_cells:
+					destroyed.append(build.get_part(cell).kind)
+			# Fuel left had the cap never dropped: start minus burns minus drains.
+			var uncapped: int = result.starting_fuel \
+					- result.events.size() * mission.fuel_per_card - extra_drained
+			var capped: bool = result.events[result.events.size() - 1].fuel_after < uncapped
+			if capped:
+				after_tank_loss += 1
+				assert_has(destroyed, PartData.Kind.FUEL_TANK, "%s: the cap only drops when a tank is destroyed" % label)
+			assert_true(capped or extra_drained > 0, "%s ran dry with launch fuel met and no cap drop or drain" % label)
+	assert_gt(met_builds, 20, "the sweep must reach fuel-met builds")
+	gut.p("fuel-met builds: %d, out-of-fuel runs: %d, of which the fuel cap dropped: %d"
+			% [met_builds, out_of_fuel, after_tank_loss])
+
+
+func _random_build(rng: RandomNumberGenerator, options: Array[PartData]) -> ShipBuild:
+	var build: ShipBuild = ShipBuild.new()
+	for row: int in ShipBuild.ROWS:
+		for column: int in ShipBuild.COLUMNS:
+			var part: PartData = options[rng.randi_range(0, options.size() - 1)]
+			if part != null:
+				build.place(Vector2i(column, row), part)
+	return build
+
+
 func test_calm_space_does_nothing() -> void:
 	var layout: Dictionary[Vector2i, PartData] = {Vector2i(0, 0): FUEL_TANK, REAR_MIDDLE: THRUSTER}
 	var pool: Array[CardData] = [CALM_SPACE]

@@ -3,13 +3,19 @@ extends RefCounted
 ## Text for what a mission demands and how a build or a finished run measures
 ## up to it: the build screen's mission panel and readout, and the run
 ## screen's outcome panel. Plain logic with no Node or scene dependencies.
-## Every number comes from MissionData, PartData (via ShipBuild) or RunResult.
+## Every number comes from MissionData, CardData, PartData (via ShipBuild) or
+## RunResult.
 
 const PANEL_CARGO: String = "CARGO HOLDS %d"
 const PANEL_CARDS: String = "CARDS %d"
 const PANEL_FUEL_PER_CARD: String = "FUEL/CARD %d"
 const CARGO_LINE: String = "Cargo %d/%d"
 const FUEL_LINE: String = "Fuel %d / %d needed"
+## Filled with: extra fuel, card name, counter threshold, counter part name
+## (plural unless 1), row suffix, working counter parts now.
+const FUEL_CARD_LINE: String = "+%d %s: counter with %d %s%s (have %d)"
+const ROW_SUFFIX_FRONT: String = " in front row"
+const ROW_SUFFIX_REAR: String = " in rear row"
 
 const TITLE_WON: String = "RUN WON"
 const TITLE_LOST: String = "RUN LOST"
@@ -28,9 +34,42 @@ static func panel_lines(mission: MissionData) -> Array[String]:
 	]
 
 
-## Fuel a run burns if every card resolves.
-static func fuel_needed(mission: MissionData) -> int:
-	return mission.card_pool.size() * mission.fuel_per_card
+## Fuel [param build] burns if every card resolves and nothing is destroyed:
+## the per-card burn for every card plus the extra fuel of each fuel card the
+## build leaves uncountered at launch.
+static func fuel_needed(build: ShipBuild, mission: MissionData) -> int:
+	var needed: int = mission.card_pool.size() * mission.fuel_per_card
+	for card: CardData in uncountered_fuel_cards(build, mission):
+		needed += card.extra_fuel_loss
+	return needed
+
+
+## Pool cards that drain extra fuel because [param build] does not counter
+## them at launch, in pool order. Uses the resolver's own counter rule.
+static func uncountered_fuel_cards(build: ShipBuild, mission: MissionData) -> Array[CardData]:
+	var uncountered: Array[CardData] = []
+	for card: CardData in mission.card_pool:
+		if not RunResolver.is_fuel_card(card):
+			continue
+		var working: int = build.working_count(RunResolver.fuel_counter_kind(card))
+		if not RunResolver.fuel_card_countered(card, working):
+			uncountered.append(card)
+	return uncountered
+
+
+## One line per uncountered fuel card: its extra fuel and what counters it,
+## e.g. "+1 Gravity Well: counter with 2 Thrusters in rear row (have 1)".
+static func fuel_card_lines(build: ShipBuild, mission: MissionData) -> Array[String]:
+	var lines: Array[String] = []
+	for card: CardData in uncountered_fuel_cards(build, mission):
+		var kind: PartData.Kind = RunResolver.fuel_counter_kind(card)
+		var part: PartData = _mission_part(mission, kind)
+		var part_name: String = part.display_name if part != null \
+				else String(PartData.Kind.keys()[kind]).capitalize()
+		part_name += _plural_s(card.counter_threshold)
+		lines.append(FUEL_CARD_LINE % [card.extra_fuel_loss, card.display_name,
+				card.counter_threshold, part_name, _row_suffix(part), build.working_count(kind)])
+	return lines
 
 
 ## "Cargo <working holds>/<required>".
@@ -40,7 +79,7 @@ static func cargo_line(build: ShipBuild, mission: MissionData) -> String:
 
 ## "Fuel <build fuel> / <needed> needed".
 static func fuel_line(build: ShipBuild, mission: MissionData) -> String:
-	return FUEL_LINE % [build.fuel_capacity(), fuel_needed(mission)]
+	return FUEL_LINE % [build.fuel_capacity(), fuel_needed(build, mission)]
 
 
 static func cargo_met(build: ShipBuild, mission: MissionData) -> bool:
@@ -48,7 +87,7 @@ static func cargo_met(build: ShipBuild, mission: MissionData) -> bool:
 
 
 static func fuel_met(build: ShipBuild, mission: MissionData) -> bool:
-	return build.fuel_capacity() >= fuel_needed(mission)
+	return build.fuel_capacity() >= fuel_needed(build, mission)
 
 
 ## "RUN WON", "RUN LOST", or "" while the result holds neither.
@@ -78,6 +117,26 @@ static func outcome_detail(result: RunResult, mission: MissionData) -> String:
 			return OUT_OF_FUEL_DETAIL % card_number
 		RunResult.LossReason.NO_THRUSTER:
 			return NO_THRUSTER_DETAIL % card_number
+	return ""
+
+
+## The mission's first offered part of [param kind], or null.
+static func _mission_part(mission: MissionData, kind: PartData.Kind) -> PartData:
+	for part: PartData in mission.parts:
+		if part != null and part.kind == kind:
+			return part
+	return null
+
+
+## Where a counter part must sit to count, from its required_row.
+static func _row_suffix(part: PartData) -> String:
+	if part == null:
+		return ""
+	match part.required_row:
+		PartData.RequiredRow.FRONT:
+			return ROW_SUFFIX_FRONT
+		PartData.RequiredRow.REAR:
+			return ROW_SUFFIX_REAR
 	return ""
 
 
