@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="CardData" format=3 uid="uid://bagiftdnm2blm"]
+
+[ext_resource type="Script" uid="uid://cq8lawqdh55ej" path="res://scripts/data/card_data.gd" id="1_akj13"]
+
+[resource]
+script = ExtResource("1_akj13")
+kind = 5
+display_name = "Fuel Leak"
+direction = 5
+extra_fuel_loss = 2
+counter_threshold = 2
+countered_text = "spare tanks covered the leak"
+uncountered_text = "fuel leaked away"

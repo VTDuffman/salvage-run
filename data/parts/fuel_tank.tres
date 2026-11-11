@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="PartData" format=3 uid="uid://ds6avg4wvs22p"]
+
+[ext_resource type="Script" uid="uid://bigyhq1olajiu" path="res://scripts/data/part_data.gd" id="1_m1q57"]
+
+[resource]
+script = ExtResource("1_m1q57")
+kind = 1
+display_name = "Fuel Tank"
+max_hp = 2
+color = Color(0.76862746, 0.28235295, 0.24313726, 1)
+fuel_capacity = 4

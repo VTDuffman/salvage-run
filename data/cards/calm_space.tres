@@ -1,0 +1,8 @@
+[gd_resource type="Resource" script_class="CardData" format=3 uid="uid://coi2xhjwx6hgo"]
+
+[ext_resource type="Script" uid="uid://cq8lawqdh55ej" path="res://scripts/data/card_data.gd" id="1_hfvxn"]
+
+[resource]
+script = ExtResource("1_hfvxn")
+display_name = "Calm Space"
+uncountered_text = "quiet stretch of space"

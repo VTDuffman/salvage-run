@@ -1,0 +1,9 @@
+[gd_resource type="Resource" script_class="PartData" format=3 uid="uid://lvxtlbsflyjs"]
+
+[ext_resource type="Script" uid="uid://bigyhq1olajiu" path="res://scripts/data/part_data.gd" id="1_veeco"]
+
+[resource]
+script = ExtResource("1_veeco")
+display_name = "Hull Plating"
+max_hp = 4
+color = Color(0.5411765, 0.5803922, 0.6509804, 1)

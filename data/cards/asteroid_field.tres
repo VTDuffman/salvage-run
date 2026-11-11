@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="CardData" format=3 uid="uid://bmqgqhlkh0lpi"]
+
+[ext_resource type="Script" uid="uid://cq8lawqdh55ej" path="res://scripts/data/card_data.gd" id="1_ctf01"]
+
+[resource]
+script = ExtResource("1_ctf01")
+kind = 1
+display_name = "Asteroid Field"
+direction = 1
+hits = 2
+damage_per_hit = 1
+countered_text = "shields deflected the rocks"
+uncountered_text = "asteroids struck the front"

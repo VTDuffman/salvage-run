@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="CardData" format=3 uid="uid://d2dxsxyy6sgoe"]
+
+[ext_resource type="Script" uid="uid://cq8lawqdh55ej" path="res://scripts/data/card_data.gd" id="1_ppo5f"]
+
+[resource]
+script = ExtResource("1_ppo5f")
+kind = 6
+display_name = "Gravity Well"
+direction = 5
+extra_fuel_loss = 1
+counter_threshold = 2
+countered_text = "twin thrusters pulled free"
+uncountered_text = "the well dragged on the engines"

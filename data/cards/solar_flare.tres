@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="CardData" format=3 uid="uid://jufon2b0arsl"]
+
+[ext_resource type="Script" uid="uid://cq8lawqdh55ej" path="res://scripts/data/card_data.gd" id="1_4ld8j"]
+
+[resource]
+script = ExtResource("1_4ld8j")
+kind = 4
+display_name = "Solar Flare"
+direction = 4
+hits = 1
+damage_per_hit = 1
+countered_text = "shields soaked up the flare"
+uncountered_text = "the flare scorched every part"

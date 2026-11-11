@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="CardData" format=3 uid="uid://c27wq0bh7trl4"]
+
+[ext_resource type="Script" uid="uid://cq8lawqdh55ej" path="res://scripts/data/card_data.gd" id="1_aieww"]
+
+[resource]
+script = ExtResource("1_aieww")
+kind = 2
+display_name = "Debris Strike"
+direction = 2
+hits = 1
+damage_per_hit = 1
+countered_text = "shields caught the debris"
+uncountered_text = "debris hit a flank"

@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="CardData" format=3 uid="uid://40sndkj54ecf"]
+
+[ext_resource type="Script" uid="uid://cq8lawqdh55ej" path="res://scripts/data/card_data.gd" id="1_6wk0i"]
+
+[resource]
+script = ExtResource("1_6wk0i")
+kind = 3
+display_name = "Rear Raider"
+direction = 3
+hits = 1
+damage_per_hit = 1
+countered_text = "shields turned the raider away"
+uncountered_text = "a raider hit the rear"

@@ -1,0 +1,10 @@
+[gd_resource type="Resource" script_class="PartData" format=3 uid="uid://c8i8tjn4tqpgj"]
+
+[ext_resource type="Script" uid="uid://bigyhq1olajiu" path="res://scripts/data/part_data.gd" id="1_bly10"]
+
+[resource]
+script = ExtResource("1_bly10")
+kind = 2
+display_name = "Cargo Hold"
+max_hp = 2
+color = Color(0.627451, 0.47058824, 0.2901961, 1)

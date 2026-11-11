@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="PartData" format=3 uid="uid://b0tymujst5h8x"]
+
+[ext_resource type="Script" uid="uid://bigyhq1olajiu" path="res://scripts/data/part_data.gd" id="1_ua5kk"]
+
+[resource]
+script = ExtResource("1_ua5kk")
+kind = 3
+display_name = "Shield"
+max_hp = 2
+color = Color(0.30980393, 0.6431373, 0.8509804, 1)
+shield_capacity = 2

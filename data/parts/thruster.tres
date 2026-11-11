@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="PartData" format=3 uid="uid://0k3ipc0o70fo"]
+
+[ext_resource type="Script" uid="uid://bigyhq1olajiu" path="res://scripts/data/part_data.gd" id="1_a2jqn"]
+
+[resource]
+script = ExtResource("1_a2jqn")
+kind = 0
+display_name = "Thruster"
+max_hp = 2
+color = Color(0.8509804, 0.50980395, 0.16862746, 1)
+required_row = 2

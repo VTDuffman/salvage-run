@@ -1,0 +1,27 @@
+[gd_resource type="Resource" script_class="MissionData" format=3 uid="uid://m6hyna3j1dso"]
+
+[ext_resource type="Script" uid="uid://cq8lawqdh55ej" path="res://scripts/data/card_data.gd" id="1_tg2q4"]
+[ext_resource type="Resource" uid="uid://bk0h8ty2a471t" path="res://data/cards/pirate_ambush.tres" id="2_8lika"]
+[ext_resource type="Resource" uid="uid://bmqgqhlkh0lpi" path="res://data/cards/asteroid_field.tres" id="3_8kuma"]
+[ext_resource type="Resource" uid="uid://c27wq0bh7trl4" path="res://data/cards/debris_strike.tres" id="4_gfmfc"]
+[ext_resource type="Resource" uid="uid://40sndkj54ecf" path="res://data/cards/rear_raider.tres" id="5_wkggm"]
+[ext_resource type="Resource" uid="uid://jufon2b0arsl" path="res://data/cards/solar_flare.tres" id="6_aogoy"]
+[ext_resource type="Resource" uid="uid://bagiftdnm2blm" path="res://data/cards/fuel_leak.tres" id="7_an8k8"]
+[ext_resource type="Resource" uid="uid://d2dxsxyy6sgoe" path="res://data/cards/gravity_well.tres" id="8_3o2tj"]
+[ext_resource type="Resource" uid="uid://coi2xhjwx6hgo" path="res://data/cards/calm_space.tres" id="9_fd4gt"]
+[ext_resource type="Script" uid="uid://bigyhq1olajiu" path="res://scripts/data/part_data.gd" id="10_yeoj3"]
+[ext_resource type="Resource" uid="uid://0k3ipc0o70fo" path="res://data/parts/thruster.tres" id="11_0uo1d"]
+[ext_resource type="Resource" uid="uid://ds6avg4wvs22p" path="res://data/parts/fuel_tank.tres" id="12_tki48"]
+[ext_resource type="Resource" uid="uid://c8i8tjn4tqpgj" path="res://data/parts/cargo_hold.tres" id="13_ghyv1"]
+[ext_resource type="Resource" uid="uid://b0tymujst5h8x" path="res://data/parts/shield.tres" id="14_jv4aw"]
+[ext_resource type="Resource" uid="uid://lvxtlbsflyjs" path="res://data/parts/hull_plating.tres" id="15_oygic"]
+[ext_resource type="Resource" uid="uid://u7hyiy34sxdw" path="res://data/parts/gun.tres" id="16_ga4aw"]
+[ext_resource type="Script" uid="uid://bh6iihxtuobyu" path="res://scripts/data/mission_data.gd" id="17_r0ica"]
+
+[resource]
+script = ExtResource("17_r0ica")
+display_name = "Cargo Run"
+cargo_required = 2
+fuel_per_card = 1
+parts = Array[ExtResource("10_yeoj3")]([ExtResource("11_0uo1d"), ExtResource("12_tki48"), ExtResource("13_ghyv1"), ExtResource("14_jv4aw"), ExtResource("15_oygic"), ExtResource("16_ga4aw")])
+card_pool = Array[ExtResource("1_tg2q4")]([ExtResource("2_8lika"), ExtResource("3_8kuma"), ExtResource("4_gfmfc"), ExtResource("5_wkggm"), ExtResource("6_aogoy"), ExtResource("7_an8k8"), ExtResource("8_3o2tj"), ExtResource("9_fd4gt")])
