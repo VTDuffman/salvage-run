@@ -10,6 +10,8 @@ const ROWS: int = 3
 const REAR_ROW: int = 2
 
 const REFUSAL_NO_REAR_THRUSTER: String = "Launch refused: no thruster in the rear row."
+## Filled with: cargo holds on the ship, "s" or "", holds the mission needs.
+const REFUSAL_CARGO_SHORT: String = "Launch refused: %d cargo hold%s, mission needs %d."
 
 ## One entry per cell, indexed row * COLUMNS + column; null means empty.
 var _parts: Array[PartData] = []
@@ -75,10 +77,46 @@ func has_rear_thruster() -> bool:
 	return false
 
 
-## Returns why launch is refused, or an empty string if launch is allowed.
-func launch_refusal() -> String:
+## True when [param part] does its job in [param cell]: a part with a required
+## row works only in that row. The one rule ShipBuild and RunResolver share.
+static func works_in(part: PartData, cell: Vector2i) -> bool:
+	match part.required_row:
+		PartData.RequiredRow.FRONT:
+			return cell.y == 0
+		PartData.RequiredRow.REAR:
+			return cell.y == REAR_ROW
+	return true
+
+
+## Number of parts of [param kind] placed where they work.
+func working_count(kind: PartData.Kind) -> int:
+	var count: int = 0
+	for cell: Vector2i in cells():
+		var part: PartData = _parts[_index(cell)]
+		if part.kind == kind and works_in(part, cell):
+			count += 1
+	return count
+
+
+## Total fuel_capacity of parts placed where they work: the run's starting fuel.
+func fuel_capacity() -> int:
+	var total: int = 0
+	for cell: Vector2i in cells():
+		var part: PartData = _parts[_index(cell)]
+		if works_in(part, cell):
+			total += part.fuel_capacity
+	return total
+
+
+## Returns why launch is refused for [param mission], or an empty string if
+## launch is allowed. The rear thruster is checked first, then cargo holds.
+## Fuel never refuses a launch.
+func launch_refusal(mission: MissionData) -> String:
 	if not has_rear_thruster():
 		return REFUSAL_NO_REAR_THRUSTER
+	var holds: int = working_count(PartData.Kind.CARGO_HOLD)
+	if holds < mission.cargo_required:
+		return REFUSAL_CARGO_SHORT % [holds, "" if holds == 1 else "s", mission.cargo_required]
 	return ""
 
 

@@ -98,7 +98,7 @@ func _flatten(result: RunResult) -> Array:
 	var flat: Array = [result.seed, result.card_order, result.starting_fuel, result.won, result.loss_reason]
 	for event: RunResult.CardEvent in result.events:
 		flat.append([event.card, event.countered, event.extra_fuel_lost, event.fuel_after,
-				event.destroyed_cells, event.loss_reason])
+				event.destroyed_cells, event.cargo_holds_after, event.loss_reason])
 		for hit: RunResult.HitEvent in event.hits:
 			flat.append([hit.entry_side, hit.lane, hit.struck_cell, hit.shield_cell, hit.absorbed,
 					hit.damage_to_part, hit.part_hp_after, hit.destroyed])
@@ -712,3 +712,43 @@ func test_cargo_run_starting_fuel_is_tanks_times_capacity() -> void:
 	}
 	var result: RunResult = RunResolver.resolve(_build(layout), CARGO_RUN, 5)
 	assert_eq(result.starting_fuel, 3 * FUEL_TANK.fuel_capacity)
+
+
+# --- Cargo holds after each card ----------------------------------------------
+
+func test_cargo_holds_after_counts_working_holds_each_card() -> void:
+	var layout: Dictionary[Vector2i, PartData] = {
+		Vector2i(0, 0): CARGO_HOLD, Vector2i(1, 0): HULL_PLATING, Vector2i(2, 0): HULL_PLATING,
+		Vector2i(0, 1): CARGO_HOLD, REAR_MIDDLE: THRUSTER,
+	}
+	var smash: CardData = _card(CardData.Kind.PIRATE_AMBUSH, 1, 2)
+	var pool: Array[CardData] = [smash, CALM_SPACE, CALM_SPACE]
+	var build: ShipBuild = _build(layout)
+	var mission: MissionData = _mission(pool, 2, 0)
+	var result: RunResult = RunResolver.resolve(build, mission, _seed_for_order(build, mission, [CALM_SPACE, smash, CALM_SPACE] as Array[CardData]))
+	assert_eq(result.events[0].cargo_holds_after, 2)
+	assert_eq(result.events[1].cargo_holds_after, 1, "the losing card reports the holds left")
+	assert_eq(result.loss_reason, RunResult.LossReason.CARGO_LOST)
+
+
+func test_cargo_holds_after_set_on_a_won_run() -> void:
+	var layout: Dictionary[Vector2i, PartData] = {
+		Vector2i(0, 0): CARGO_HOLD, Vector2i(1, 0): CARGO_HOLD, Vector2i(2, 0): CARGO_HOLD, REAR_MIDDLE: THRUSTER,
+	}
+	var result: RunResult = RunResolver.resolve(_build(layout), _mission(_calm_pool(3), 2, 0), 1)
+	assert_true(result.won)
+	for event: RunResult.CardEvent in result.events:
+		assert_eq(event.cargo_holds_after, 3)
+
+
+func test_starting_fuel_equals_build_fuel_capacity() -> void:
+	var layouts: Array[Dictionary] = [
+		{Vector2i(0, 1): FUEL_TANK, Vector2i(2, 1): FUEL_TANK, REAR_MIDDLE: THRUSTER},
+		{Vector2i(0, 0): FUEL_TANK, Vector2i(0, 2): GUN, REAR_MIDDLE: THRUSTER},
+		{REAR_MIDDLE: THRUSTER},
+	]
+	for layout: Dictionary in layouts:
+		var typed: Dictionary[Vector2i, PartData] = {}
+		typed.assign(layout)
+		var build: ShipBuild = _build(typed)
+		assert_eq(RunResolver.resolve(build, CARGO_RUN, 3).starting_fuel, build.fuel_capacity())

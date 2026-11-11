@@ -124,3 +124,42 @@ size_flags_vertical = 3
 theme_override_font_sizes/normal_font_size = 8
 scroll_following = true
 selection_enabled = false
+
+[node name="OutcomePanel" type="PanelContainer" parent="Layout/LogColumn"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+
+[node name="OutcomeBox" type="VBoxContainer" parent="Layout/LogColumn/OutcomePanel"]
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="OutcomeTitle" type="Label" parent="Layout/LogColumn/OutcomePanel/OutcomeBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 8
+horizontal_alignment = 1
+
+[node name="OutcomeDetail" type="Label" parent="Layout/LogColumn/OutcomePanel/OutcomeBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 8
+horizontal_alignment = 1
+autowrap_mode = 3
+
+[node name="OutcomeButtons" type="HBoxContainer" parent="Layout/LogColumn/OutcomePanel/OutcomeBox"]
+layout_mode = 2
+theme_override_constants/separation = 8
+alignment = 1
+
+[node name="RebuildButton" type="Button" parent="Layout/LogColumn/OutcomePanel/OutcomeBox/OutcomeButtons"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 8
+text = "REBUILD (NEW SEED)"
+
+[node name="RetryButton" type="Button" parent="Layout/LogColumn/OutcomePanel/OutcomeBox/OutcomeButtons"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 8
+text = "RETRY SAME SEED"

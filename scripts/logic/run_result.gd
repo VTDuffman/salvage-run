@@ -41,6 +41,8 @@ class CardEvent:
 	var fuel_after: int = 0
 	## Cells whose parts were destroyed by this card, in destruction order.
 	var destroyed_cells: Array[Vector2i] = []
+	## Working cargo holds after the card, as the loss check counted them.
+	var cargo_holds_after: int = 0
 	## The loss this card caused, or NONE.
 	var loss_reason: RunResult.LossReason = RunResult.LossReason.NONE
 

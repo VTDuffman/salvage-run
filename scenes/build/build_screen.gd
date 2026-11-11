@@ -1,25 +1,36 @@
 extends Control
 ## The build screen: loads the mission, owns the player's ShipBuild, wires the
-## input layer to it, redraws the grid, and gates Launch on the build. An
-## allowed launch resolves the run with a fresh seed and opens the run screen
-## over this one, with build input switched off.
+## input layer to it, redraws the grid, shows the mission's requirements with
+## a live readout of the build against them, and gates Launch on the build.
+## An allowed launch resolves the run and opens the run screen over this one,
+## with build input switched off. The run screen's Rebuild and Retry same seed
+## close it and hand control back here with the layout unchanged.
 
 const MISSION_PATH: String = "res://data/missions/cargo_run.tres"
 const RUN_SCREEN_SCENE: PackedScene = preload("res://scenes/run/run_screen.tscn")
 const HINT_TEXT: String = "Drag parts onto the grid. Drag off or right-click to remove."
+const RETRY_TEXT: String = "Retry: the next launch reuses seed %d."
+const OK_COLOR: Color = Color(0.49, 0.77, 0.35)
+const WARNING_COLOR: Color = Color(0.95, 0.42, 0.3)
 
 var mission: MissionData
 var build: ShipBuild = ShipBuild.new()
-## The seed of the latest launch.
+## The seed of the latest launch, reused by the next one after Retry.
 var run_seed: int = 0
 
 var _run_screen: RunScreen = null
+## True after Retry same seed: the next launch keeps run_seed.
+var _retry_seed: bool = false
 
 @onready var _grid: GridView = %GridView
 @onready var _palette: PaletteView = %PaletteView
 @onready var _input_layer: BuildMouseInput = %BuildMouseInput
 @onready var _launch_button: Button = %LaunchButton
 @onready var _status_label: Label = %StatusLabel
+@onready var _mission_title: Label = %MissionTitle
+@onready var _mission_lines: Label = %MissionLines
+@onready var _cargo_readout: Label = %CargoReadout
+@onready var _fuel_readout: Label = %FuelReadout
 
 
 func _ready() -> void:
@@ -28,8 +39,11 @@ func _ready() -> void:
 	_input_layer.build = build
 	_input_layer.build_changed.connect(_on_build_changed)
 	_launch_button.pressed.connect(_on_launch_pressed)
+	_mission_title.text = mission.display_name.to_upper()
+	_mission_lines.text = "\n".join(MissionReadout.panel_lines(mission))
 	_grid.show_build(build)
-	_status_label.text = HINT_TEXT
+	_refresh_readout()
+	_status_label.text = _idle_status()
 
 
 ## The open run screen, or null while building.
@@ -37,24 +51,70 @@ func get_run_screen() -> RunScreen:
 	return _run_screen
 
 
+## True when the next launch will reuse run_seed.
+func is_retrying_seed() -> bool:
+	return _retry_seed
+
+
 func _on_build_changed() -> void:
 	_grid.show_build(build)
-	_status_label.text = HINT_TEXT
+	_refresh_readout()
+	_status_label.text = _idle_status()
 
 
 func _on_launch_pressed() -> void:
 	if _run_screen != null:
 		return
-	var refusal: String = build.launch_refusal()
+	var refusal: String = build.launch_refusal(mission)
 	if not refusal.is_empty():
 		_status_label.text = refusal
 		return
-	var rng: RandomNumberGenerator = RandomNumberGenerator.new()
-	rng.randomize()
-	run_seed = rng.randi()
+	if not _retry_seed:
+		var rng: RandomNumberGenerator = RandomNumberGenerator.new()
+		rng.randomize()
+		run_seed = rng.randi()
+	_retry_seed = false
 	var result: RunResult = RunResolver.resolve(build, mission, run_seed)
 	_input_layer.enabled = false
 	_launch_button.release_focus()
 	_run_screen = RUN_SCREEN_SCENE.instantiate() as RunScreen
 	add_child(_run_screen)
-	_run_screen.start(build, result)
+	_run_screen.rebuild_requested.connect(_on_rebuild_requested)
+	_run_screen.retry_requested.connect(_on_retry_requested)
+	_run_screen.start(build, result, mission)
+
+
+func _on_rebuild_requested() -> void:
+	_retry_seed = false
+	_close_run_screen()
+
+
+func _on_retry_requested() -> void:
+	_retry_seed = true
+	_close_run_screen()
+
+
+## Frees the run screen and returns to building with the same layout.
+func _close_run_screen() -> void:
+	if _run_screen == null:
+		return
+	remove_child(_run_screen)
+	_run_screen.queue_free()
+	_run_screen = null
+	_input_layer.enabled = true
+	_grid.show_build(build)
+	_refresh_readout()
+	_status_label.text = _idle_status()
+
+
+func _refresh_readout() -> void:
+	_cargo_readout.text = MissionReadout.cargo_line(build, mission)
+	_fuel_readout.text = MissionReadout.fuel_line(build, mission)
+	_cargo_readout.add_theme_color_override("font_color",
+			OK_COLOR if MissionReadout.cargo_met(build, mission) else WARNING_COLOR)
+	_fuel_readout.add_theme_color_override("font_color",
+			OK_COLOR if MissionReadout.fuel_met(build, mission) else WARNING_COLOR)
+
+
+func _idle_status() -> String:
+	return RETRY_TEXT % run_seed if _retry_seed else HINT_TEXT

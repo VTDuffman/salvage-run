@@ -111,11 +111,12 @@ func _resolve_card(card: CardData) -> RunResult.CardEvent:
 	event.fuel_after = _fuel
 
 	# 4. Check for loss, in priority order.
+	event.cargo_holds_after = _working_count(PartData.Kind.CARGO_HOLD)
 	if _working_count(PartData.Kind.THRUSTER) == 0:
 		event.loss_reason = RunResult.LossReason.NO_THRUSTER
 	elif _fuel < 0:
 		event.loss_reason = RunResult.LossReason.OUT_OF_FUEL
-	elif _working_count(PartData.Kind.CARGO_HOLD) < _mission.cargo_required:
+	elif event.cargo_holds_after < _mission.cargo_required:
 		event.loss_reason = RunResult.LossReason.CARGO_LOST
 	return event
 
@@ -222,14 +223,7 @@ func _absorbed_without_damage(event: RunResult.CardEvent) -> bool:
 
 ## Working means not destroyed and, when the part has a required row, in it.
 func _is_working(cell: Vector2i) -> bool:
-	if _hp[cell] <= 0:
-		return false
-	match _parts[cell].required_row:
-		PartData.RequiredRow.FRONT:
-			return cell.y == 0
-		PartData.RequiredRow.REAR:
-			return cell.y == ShipBuild.REAR_ROW
-	return true
+	return _hp[cell] > 0 and ShipBuild.works_in(_parts[cell], cell)
 
 
 func _working_count(kind: PartData.Kind) -> int:

@@ -1,11 +1,15 @@
 extends GutTest
-## ShipBuild edits (CAP-1) and the rear-thruster launch gate (CAP-2), ported
+## ShipBuild edits (CAP-1), the rear-thruster launch gate (CAP-2) and the
+## cargo-hold launch gate (CAP-8), the first two ported
 ## from story 3's headless checks.
 
 const THRUSTER: PartData = preload("res://data/parts/thruster.tres")
 const CARGO_HOLD: PartData = preload("res://data/parts/cargo_hold.tres")
 const GUN: PartData = preload("res://data/parts/gun.tres")
 const CARGO_RUN: MissionData = preload("res://data/missions/cargo_run.tres")
+const FUEL_TANK: PartData = preload("res://data/parts/fuel_tank.tres")
+## No cargo requirement, so thruster-gate tests see only the thruster check.
+var _no_cargo: MissionData = MissionData.new()
 
 
 func test_new_build_is_empty() -> void:
@@ -99,7 +103,7 @@ func test_launch_refused_without_thruster() -> void:
 	var build: ShipBuild = ShipBuild.new()
 	build.place(Vector2i(1, 2), CARGO_HOLD)
 	assert_false(build.has_rear_thruster())
-	assert_eq(build.launch_refusal(), ShipBuild.REFUSAL_NO_REAR_THRUSTER)
+	assert_eq(build.launch_refusal(_no_cargo), ShipBuild.REFUSAL_NO_REAR_THRUSTER)
 
 
 func test_launch_refused_with_thrusters_only_in_rows_0_and_1() -> void:
@@ -108,7 +112,7 @@ func test_launch_refused_with_thrusters_only_in_rows_0_and_1() -> void:
 		build.place(Vector2i(column, 0), THRUSTER)
 		build.place(Vector2i(column, 1), THRUSTER)
 	assert_false(build.has_rear_thruster())
-	assert_eq(build.launch_refusal(), ShipBuild.REFUSAL_NO_REAR_THRUSTER)
+	assert_eq(build.launch_refusal(_no_cargo), ShipBuild.REFUSAL_NO_REAR_THRUSTER)
 
 
 func test_launch_allowed_with_thruster_in_rear_row() -> void:
@@ -116,7 +120,7 @@ func test_launch_allowed_with_thruster_in_rear_row() -> void:
 		var build: ShipBuild = ShipBuild.new()
 		build.place(Vector2i(column, ShipBuild.REAR_ROW), THRUSTER)
 		assert_true(build.has_rear_thruster())
-		assert_eq(build.launch_refusal(), "")
+		assert_eq(build.launch_refusal(_no_cargo), "")
 
 
 func test_launch_refused_again_after_rear_thruster_removed() -> void:
@@ -124,10 +128,89 @@ func test_launch_refused_again_after_rear_thruster_removed() -> void:
 	build.place(Vector2i(0, 2), THRUSTER)
 	build.move(Vector2i(0, 2), Vector2i(0, 1))
 	assert_false(build.has_rear_thruster())
-	assert_eq(build.launch_refusal(), ShipBuild.REFUSAL_NO_REAR_THRUSTER)
+	assert_eq(build.launch_refusal(_no_cargo), ShipBuild.REFUSAL_NO_REAR_THRUSTER)
 	build.move(Vector2i(0, 1), Vector2i(0, 2))
 	assert_true(build.has_rear_thruster())
-	assert_eq(build.launch_refusal(), "")
+	assert_eq(build.launch_refusal(_no_cargo), "")
 	build.remove(Vector2i(0, 2))
 	assert_false(build.has_rear_thruster())
-	assert_eq(build.launch_refusal(), ShipBuild.REFUSAL_NO_REAR_THRUSTER)
+	assert_eq(build.launch_refusal(_no_cargo), ShipBuild.REFUSAL_NO_REAR_THRUSTER)
+
+
+# --- Cargo gate and readout counts (CAP-8) --------------------------------------
+
+func _mission(cargo_required: int) -> MissionData:
+	var mission: MissionData = CARGO_RUN.duplicate() as MissionData
+	mission.cargo_required = cargo_required
+	return mission
+
+
+func test_thruster_refusal_is_checked_before_cargo() -> void:
+	var build: ShipBuild = ShipBuild.new()
+	build.place(Vector2i(1, 1), THRUSTER)
+	assert_eq(build.launch_refusal(CARGO_RUN), ShipBuild.REFUSAL_NO_REAR_THRUSTER)
+
+
+func test_launch_refused_when_cargo_holds_short() -> void:
+	var build: ShipBuild = ShipBuild.new()
+	build.place(Vector2i(1, 2), THRUSTER)
+	build.place(Vector2i(0, 0), CARGO_HOLD)
+	assert_eq(build.launch_refusal(_mission(2)), "Launch refused: 1 cargo hold, mission needs 2.")
+	build.remove(Vector2i(0, 0))
+	assert_eq(build.launch_refusal(_mission(2)), "Launch refused: 0 cargo holds, mission needs 2.")
+
+
+func test_cargo_gate_follows_mission_data() -> void:
+	var build: ShipBuild = ShipBuild.new()
+	build.place(Vector2i(1, 2), THRUSTER)
+	build.place(Vector2i(0, 0), CARGO_HOLD)
+	build.place(Vector2i(2, 0), CARGO_HOLD)
+	assert_eq(build.launch_refusal(_mission(2)), "")
+	assert_eq(build.launch_refusal(_mission(3)), "Launch refused: 2 cargo holds, mission needs 3.")
+
+
+func test_launch_allowed_with_no_holds_when_none_required() -> void:
+	var build: ShipBuild = ShipBuild.new()
+	build.place(Vector2i(1, 2), THRUSTER)
+	assert_eq(build.launch_refusal(_mission(0)), "")
+
+
+func test_fuel_never_refuses_launch() -> void:
+	var build: ShipBuild = ShipBuild.new()
+	build.place(Vector2i(1, 2), THRUSTER)
+	build.place(Vector2i(0, 0), CARGO_HOLD)
+	build.place(Vector2i(2, 0), CARGO_HOLD)
+	assert_eq(build.fuel_capacity(), 0)
+	assert_eq(build.launch_refusal(CARGO_RUN), "")
+
+
+func test_works_in_follows_required_row() -> void:
+	for column: int in ShipBuild.COLUMNS:
+		assert_true(ShipBuild.works_in(GUN, Vector2i(column, 0)))
+		assert_false(ShipBuild.works_in(GUN, Vector2i(column, 1)))
+		assert_false(ShipBuild.works_in(THRUSTER, Vector2i(column, 1)))
+		assert_true(ShipBuild.works_in(THRUSTER, Vector2i(column, ShipBuild.REAR_ROW)))
+		for row: int in ShipBuild.ROWS:
+			assert_true(ShipBuild.works_in(CARGO_HOLD, Vector2i(column, row)))
+
+
+func test_working_count_skips_parts_outside_their_row() -> void:
+	var build: ShipBuild = ShipBuild.new()
+	build.place(Vector2i(0, 0), GUN)
+	build.place(Vector2i(1, 1), GUN)
+	build.place(Vector2i(0, 2), THRUSTER)
+	build.place(Vector2i(1, 0), THRUSTER)
+	assert_eq(build.working_count(PartData.Kind.GUN), 1)
+	assert_eq(build.working_count(PartData.Kind.THRUSTER), 1)
+	assert_eq(build.working_count(PartData.Kind.CARGO_HOLD), 0)
+
+
+func test_fuel_capacity_sums_tank_data() -> void:
+	var build: ShipBuild = ShipBuild.new()
+	build.place(Vector2i(0, 1), FUEL_TANK)
+	build.place(Vector2i(2, 1), FUEL_TANK)
+	assert_eq(build.fuel_capacity(), 2 * FUEL_TANK.fuel_capacity)
+	var big_tank: PartData = FUEL_TANK.duplicate() as PartData
+	big_tank.fuel_capacity = 9
+	build.place(Vector2i(0, 1), big_tank)
+	assert_eq(build.fuel_capacity(), 9 + FUEL_TANK.fuel_capacity)
