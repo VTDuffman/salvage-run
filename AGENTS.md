@@ -17,7 +17,8 @@ Pixel-art roguelike ship-builder: assemble a ship on a grid, then watch a passiv
 
 - Godot is not on PATH. Use `C:\tools\godot\Godot_v4.7.2-stable_win64_console.exe`; the non-console `Godot_v4.7.2-stable_win64.exe` beside it prints nothing to the terminal.
 - Re-import headlessly after adding assets or `class_name` scripts: `<godot-console> --headless --path . --import`.
-- GUT is not installed yet. Install it under `addons/gut/` as part of the first run-resolver story, then record the verified headless test command here.
+- Run tests (GUT 9.7.1, config in `.gutconfig.json`, tests in `test/`, files named `test_*.gd`): `<godot-console> --headless --path . -s addons/gut/gut_cmdln.gd`. Exit code 0 means every test passed, 1 means a failure.
+- A test script that fails to parse is skipped with only a `[GUT WARNING] Ignoring script ... does not extend GutTest`, and the run still exits 0. Check that the summary shows `Warnings` absent and the expected `Scripts` count.
 
 ## Conventions that differ from defaults
 

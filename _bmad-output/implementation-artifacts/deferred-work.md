@@ -10,3 +10,9 @@
 - source_spec: `_bmad-output/specs/spec-vertical-slice/stories/3-part-palette-drag-and-drop-launch-gate.md`
   summary: Add a check that a right-click during an active left drag is ignored, so a dragged part can't be lost through a null swap.
   evidence: The `not is_dragging()` guard in build_mouse_input.gd isn't exercised. Without it, a right-click mid-drag empties the source cell and the release then swaps null into the target.
+- source_spec: `_bmad-output/specs/spec-vertical-slice/stories/4-run-resolver-pure-logic-gut-tests.md`
+  summary: In story 7, watch whether shields are nearly indestructible because their own coverage protects them; candidate fixes are excluding the shield's own cell from coverage or lowering shield capacity to 1.
+  evidence: Coverage includes the shield's own cell (resolution-rules.md), so hits on a shield draw from its 2 per-card capacity before its HP. Excluding its own cell is a rule change and goes back to the spec first; lowering capacity is a data-only change.
+- source_spec: `_bmad-output/specs/spec-vertical-slice/stories/4-run-resolver-pure-logic-gut-tests.md`
+  summary: In story 6, extend the launch gate to refuse launch when the build has fewer cargo holds than the mission's cargo_required, with a message explaining why.
+  evidence: Story 4's resolver checks the cargo loss only after each card, so a build short on cargo holds launches and is lost after the first card; the gate should stop a run that can never be won from starting.
