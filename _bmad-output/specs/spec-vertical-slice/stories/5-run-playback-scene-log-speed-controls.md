@@ -2,7 +2,7 @@
 title: 'Run playback scene with log and speed controls'
 type: 'feature'
 created: '2026-11-10'
-status: 'in-progress'
+status: 'done'
 baseline_commit: '194249ee800379c29c2cd6ca588c835bcb17941c'
 route: 'dispatch'
 review_loop_iteration: 0
@@ -58,13 +58,13 @@ context:
 ## Tasks & Acceptance
 
 **Execution:**
-- [ ] `scripts/logic/run_playback.gd` -- `RunPlayback`: built from a `ShipBuild` and `RunResult`; `step()` applies the next event to per-cell HP/destroyed and fuel; exposes card index and count, `is_finished()`, and log lines per the matrix (static, testable without stepping).
-- [ ] `scripts/logic/playback_clock.gd` -- `PlaybackClock`: seconds per card, speed (normal/fast), paused; `advance(delta) -> int` returns cards due; `progress()` 0–1 within the current card for the flash.
-- [ ] `scenes/build/grid_view.gd` -- show part name plus HP, destroyed cells, and a flash tint whose strength the caller sets.
-- [ ] `scenes/run/run_screen.tscn` + `run_screen.gd` -- full-rect opaque screen: grid with FRONT/REAR labels, fuel and "Card n/8" labels, scrolling log, Play/Pause/Fast-forward buttons; `start(build, result)`; `_process` drives the clock and `RunPlayback`.
-- [ ] `scenes/build/build_screen.gd` + `build_mouse_input.gd` -- on allowed launch: new seed, resolve, add run screen as a child, disable build input. Refusal text unchanged.
-- [ ] `test/unit/test_run_playback.gd` -- every matrix row, HP/destroyed/fuel after each step against a real resolved run, and clock pause/speed/large delta.
-- [ ] `test/unit/test_run_screen.gd` -- instantiate the run screen headless with a resolved result; stepping adds a log line and changes the struck cell's text or color; each button changes clock state mid-run.
+- [x] `scripts/logic/run_playback.gd` -- `RunPlayback`: built from a `ShipBuild` and `RunResult`; `step()` applies the next event to per-cell HP/destroyed and fuel; exposes card index and count, `is_finished()`, and log lines per the matrix (static, testable without stepping).
+- [x] `scripts/logic/playback_clock.gd` -- `PlaybackClock`: seconds per card, speed (normal/fast), paused; `advance(delta) -> int` returns cards due; `progress()` 0–1 within the current card for the flash.
+- [x] `scenes/build/grid_view.gd` -- show part name plus HP, destroyed cells, and a flash tint whose strength the caller sets.
+- [x] `scenes/run/run_screen.tscn` + `run_screen.gd` -- full-rect opaque screen: grid with FRONT/REAR labels, fuel and "Card n/8" labels, scrolling log, Play/Pause/Fast-forward buttons; `start(build, result)`; `_process` drives the clock and `RunPlayback`.
+- [x] `scenes/build/build_screen.gd` + `build_mouse_input.gd` -- on allowed launch: new seed, resolve, add run screen as a child, disable build input. Refusal text unchanged.
+- [x] `test/unit/test_run_playback.gd` -- every matrix row, HP/destroyed/fuel after each step against a real resolved run, and clock pause/speed/large delta.
+- [x] `test/unit/test_run_screen.gd` -- instantiate the run screen headless with a resolved result; stepping adds a log line and changes the struck cell's text or color; each button changes clock state mid-run.
 
 **Acceptance Criteria:**
 - Given a build that loses parts, when the run plays, then each damaged cell's shown HP drops and each destroyed cell shows as destroyed by the card that did it (CAP-6).
@@ -82,7 +82,28 @@ context:
 - Run the game, build a ship with a rear thruster, launch: cards play with flashes and log lines; Pause, Play and Fast-forward respond mid-run; layout readable at 640×360.
 
 ## Implementation Notes
+- Verified after review: headless `--import` clean; GUT runs 6 scripts, 93 tests, all passing, exit code 0. Review fixes in 0341dac.
 
 ## Spec Change Log
 
 ## Review Triage Log
+
+- Grid HP text never asserted (verification-gap) — low, real: the stepping test passes on the flash color alone, so the HP readout could break unnoticed. Patched: assertion on "hp/max HP" after the first card.
+- Build input gating checked only as a flag (verification-gap, blind) — medium, real: removing the `_input` early return or `_cancel_drag()` keeps every test green while the ship stays editable under the run screen. Patched: right-click-after-launch and disable-mid-drag tests.
+- Flash and destroyed colors never asserted at the grid (verification-gap) — low, real: swapping red and blue passes every test. Patched: grid color test.
+- Per-launch seed untested (verification-gap, blind) — low, real: removing `randomize()` passes every test. Deferred to story 6, the first code that reads `run_seed` back.
+- Seed not shown on screen (blind) — low, rejected: not in the spec; no reader for it before story 6.
+- Story file changes not committed (blind) — false: the workflow commits the spec's status updates when the story finishes.
+- `_process` keeps redrawing after the run ends (blind) — low, rejected: 9 cells per frame on a static screen; the fix adds a stop condition for negligible cost.
+- FUEL counter shows -1 (blind, edge) — low, real: seen on every out-of-fuel loss. Patched: the display is clamped at 0.
+- Destroyed cell shows a bare "X" (blind) — low, real: the grid loses which part stood there. Patched: "<name>\nX", still dark with an X.
+- Stale doc comments on `get_cell_text`, `progress()`, `start()` (blind, edge) — low, real. Patched.
+- Shield cell and remaining capacity not shown (blind) — low, rejected: the spec decision sets the flashes on the struck cell; showing shield capacity is new display scope.
+- Zero events, or neither won nor a loss reason (blind, edge) — false: the resolver always produces at least one event and sets one of the two.
+- Pause flash frozen only tested at clock level (blind) — low, rejected: the screen's flash reads only `clock.flash_strength()`, which the clock test freezes.
+- Test helpers continue after `fail_test` (blind, edge) — low, rejected: only adds noise to an already-failed test (same call as story 4).
+- Hard-coded "CARD n/8", "FAST x4", 1.5 in tests (blind, edge) — low, rejected: the pool is 8 cards by spec, and the 1.5 test asserts the documented default.
+- `start()` before entering the tree crashes (edge) — false: the only caller adds the child first; the doc comment now says so.
+- Large delta skips drawing intermediate cards (edge) — low, rejected: each due card is still applied in order and logged, per the matrix; only a frame hitch triggers it.
+- NaN/INF delta (edge) — false: the engine never passes a non-finite delta to `_process`.
+- Freed run screen blocks relaunch; build input never re-enabled (edge) — false today: no return path exists until story 6, which must null `_run_screen` and set `enabled = true` when it closes the run screen.

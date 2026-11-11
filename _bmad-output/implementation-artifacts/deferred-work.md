@@ -16,3 +16,6 @@
 - source_spec: `_bmad-output/specs/spec-vertical-slice/stories/4-run-resolver-pure-logic-gut-tests.md`
   summary: In story 6, extend the launch gate to refuse launch when the build has fewer cargo holds than the mission's cargo_required, with a message explaining why.
   evidence: Story 4's resolver checks the cargo loss only after each card, so a build short on cargo holds launches and is lost after the first card; the gate should stop a run that can never be won from starting.
+- source_spec: `_bmad-output/specs/spec-vertical-slice/stories/5-run-playback-scene-log-speed-controls.md`
+  summary: In story 6, test that build_screen.run_seed is the seed the played run used and that each launch gets a new one; the return path must also null _run_screen and re-enable build input.
+  evidence: Removing rng.randomize() or passing a different seed to resolve keeps every story 5 test green; story 6's Retry/Rebuild is the first code that reads run_seed back.
