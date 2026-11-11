@@ -55,9 +55,9 @@ func show_build(build: ShipBuild) -> void:
 
 
 ## Redraws every cell from [param playback]: part name and current HP,
-## destroyed cells dark with an "X", and the last card's struck cells tinted
-## red (damage) or blue (fully absorbed by a shield). [param flash_strength]
-## sets the tint: 0 is none, 1 is the full flash color.
+## destroyed cells dark with the part name over an "X", and the last card's
+## struck cells tinted red (damage) or blue (fully absorbed by a shield).
+## [param flash_strength] sets the tint: 0 is none, 1 is the full flash color.
 func show_playback(playback: RunPlayback, flash_strength: float) -> void:
 	var strength: float = clampf(flash_strength, 0.0, 1.0)
 	for row: int in ROWS:
@@ -72,7 +72,7 @@ func show_playback(playback: RunPlayback, flash_strength: float) -> void:
 				label.text = ""
 			elif destroyed:
 				background = destroyed_color
-				label.text = "X"
+				label.text = "%s\nX" % part.display_name
 			else:
 				background = part.color
 				label.text = "%s\n%d/%d HP" % [part.display_name, playback.hp(cell), part.max_hp]
@@ -88,7 +88,8 @@ func show_playback(playback: RunPlayback, flash_strength: float) -> void:
 			label.add_theme_color_override("font_color", text_color)
 
 
-## Returns the part name shown in the cell at [param cell], or "" if blank.
+## Returns the whole text shown in the cell at [param cell]: the part name
+## (plus HP, or "X" once destroyed, during playback), or "" if blank.
 func get_cell_text(cell: Vector2i) -> String:
 	if not ShipBuild.is_valid_cell(cell):
 		return ""

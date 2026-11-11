@@ -34,7 +34,8 @@ func _ready() -> void:
 
 
 ## Starts playing [param result] for the ship [param build] from its first
-## card, at normal speed.
+## card, at normal speed. Call it after the screen is in the scene tree: it
+## uses @onready nodes.
 func start(build: ShipBuild, result: RunResult) -> void:
 	_playback = RunPlayback.new(build, result)
 	_clock = PlaybackClock.new()
@@ -81,7 +82,7 @@ func _refresh() -> void:
 	if _playback == null:
 		return
 	_grid.show_playback(_playback, _clock.flash_strength())
-	_fuel_label.text = FUEL_TEXT % _playback.fuel()
+	_fuel_label.text = FUEL_TEXT % maxi(_playback.fuel(), 0)
 	_card_label.text = CARD_TEXT % [_playback.card_index(), _playback.card_count()]
 
 

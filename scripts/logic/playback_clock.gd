@@ -52,7 +52,7 @@ func advance(delta: float) -> int:
 	return due
 
 
-## Progress through the current card's interval, from 0 to just under 1.
+## Progress through the current card's interval, clamped to 0..1.
 func progress() -> float:
 	if seconds_per_card <= 0.0:
 		return 0.0
