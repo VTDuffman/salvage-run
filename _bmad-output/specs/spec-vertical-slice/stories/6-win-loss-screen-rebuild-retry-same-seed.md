@@ -2,7 +2,7 @@
 title: 'Win/loss screen with Rebuild and Retry same seed, plus visible mission requirements'
 type: 'feature'
 created: '2026-11-10'
-status: 'in-progress'
+status: 'done'
 baseline_commit: '7b7a3233ed27a2fdd6034c86c3e96750d9759106'
 route: 'dispatch'
 review_loop_iteration: 0
@@ -77,6 +77,7 @@ context:
 
 ## Implementation Notes
 
+- Verified after review: headless import clean; GUT runs 7 scripts, 128 tests, all passing, exit code 0. Review fixes in fc0e069.
 - Outcome panel sits at the bottom of the run screen's log column (shown when playback finishes), not floating over it: at 640×360 a floating panel would cover the newest log lines, and the decision's goal was that grid and log stay readable. The log column shrinks to make room.
 - Win detail is "Cargo delivered: <holds intact after last card> of <cargo_required> hold(s) intact". A ship with more holds than required reads e.g. "3 of 2 holds intact"; the matrix format was kept as written.
 - `outcome_detail` returns "" for a result with no events (empty card pool); `ShipBuild` pluralizes the cargo refusal inline to avoid a ShipBuild↔MissionReadout dependency.
@@ -87,6 +88,22 @@ context:
 ## Spec Change Log
 
 ## Review Triage Log
+
+- `has_rear_thruster` keeps its own copy of the required-row rule (blind) — low, real: the gate and resolver diverge if thruster `required_row` data changes; the spec requires one shared rule. Patched: it goes through `working_count`.
+- Readout colors only compared label-to-label (verification-gap) — low, real: inverting OK/WARNING passes every test. Patched: assertions against the screen's constants, including the empty build.
+- Retry across a refused launch and retry status after edits untested (verification-gap, blind) — low, real: clearing the flag on refusal or resetting status on `build_changed` would pass. Patched: new test.
+- `MissionTitle` never asserted (blind) — low, real. Patched.
+- `_place_required_holds` breaks above 3 holds (blind) — low, real: story 7 tuning can raise `cargo_required`. Patched: fills row by row.
+- Win text "3 of 2 holds intact" and "N of 0 holds" when none required; plural keyed on required (blind, edge, verification-gap) — low, real: common with surplus holds. The wording is set by the frozen matrix, so it goes to Mike instead of being patched.
+- Empty card pool shows RUN WON with no detail; won false + NONE shows empty panel (blind, edge) — low, rejected: needs malformed mission data (already logged as a MissionData validation follow-up), and the resolver always sets one of the two.
+- `remove_child` of the run screen inside its own button's `pressed` (edge) — maybe-false: tests emit `pressed` directly, not via a real click; settle by clicking Retry in the running game and checking for `!is_inside_tree` errors. Would be low (log noise) if real; rejected, covered by the manual check.
+- Rebuild can redraw the same seed; test can flake (edge) — low, rejected: 1 in 2^32.
+- Retry/Rebuild set `_retry_seed` with no run screen open on a same-frame double press (blind) — false: `remove_child` takes the buttons out of the tree on the first press, so no second press reaches them.
+- Buttons emit before the panel is visible (blind) — false: hidden buttons receive no input; the test emits the signal directly.
+- Mission panel has no wrap/clip for longer text (blind) — low, rejected: current data fits; covered by the manual 640×360 check.
+- Hold-count text in three formats, pluralization duplicated, log line still "too much cargo lost" (blind) — low, rejected: the log line is unchanged by spec decision; the formats follow the request's examples.
+- No focus on Retry/Rebuild when the panel appears (blind) — low, rejected: keyboard focus is new scope (mouse-only slice).
+- Test nits: `_no_cargo` relies on `cargo_required` default 0, const order, header comment (blind) — low, rejected: cosmetic.
 
 ## Verification
 
