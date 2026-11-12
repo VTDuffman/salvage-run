@@ -17,6 +17,11 @@ const CHUNK_SIZE: int = 1000
 ## Worker threads per process for evaluate(); measured best at 2-4.
 const DEFAULT_THREADS: int = 4
 const RESULT_PREFIX: String = "R"
+## Top builds the confirmation pass re-runs on fresh seeds.
+const CONFIRM_BUILDS: int = 20
+## Win-rate distribution rows: exactly 0%, ten 10-point bands (above 0% to
+## below 10%, 10% to below 20%, ..., 90% to below 100%), exactly 100%.
+const DISTRIBUTION_BUCKETS: int = 12
 
 
 ## One evaluated build: its layout code, wins, and losses by reason.
@@ -54,6 +59,7 @@ class _Evaluator:
 
 	var mission: MissionData
 	var seeds: int
+	var first_seed: int = 1
 	var results: Array[BuildResult] = []
 	## The current chunk: its builds, their codes, and where it starts in results.
 	var builds: Array[ShipBuild] = []
@@ -64,7 +70,7 @@ class _Evaluator:
 	func evaluate_one(index: int) -> void:
 		var build: ShipBuild = builds[index]
 		var result: BuildResult = BuildResult.new(codes[index])
-		for run_seed: int in range(1, seeds + 1):
+		for run_seed: int in range(first_seed, first_seed + seeds):
 			var run: RunResult = RunResolver.resolve(build, mission, run_seed)
 			result.runs += 1
 			if run.won:
@@ -201,18 +207,20 @@ static func select_builds(mission: MissionData, requested: int, sample_seed: int
 	return codes
 
 
-## Resolves every build in [param codes] against seeds 1..[param seeds] on the
+## Resolves every build in [param codes] against [param seeds] seeds, from
+## [param first_seed] to [param first_seed] + [param seeds] - 1, on the
 ## WorkerThreadPool, using at most [param threads] worker threads. Each run
 ## allocates many script objects and object creation is serialized engine-wide,
 ## so more than a few threads per process is slower, not faster; scale out
 ## with shard() and separate processes instead. [param progress] is called
 ## with (done, total) after each chunk of [param chunk_size] builds. Results
 ## come back in [param codes] order.
-static func evaluate(mission: MissionData, codes: PackedInt64Array, seeds: int, threads: int = DEFAULT_THREADS, progress: Callable = Callable(), chunk_size: int = CHUNK_SIZE) -> Array[BuildResult]:
+static func evaluate(mission: MissionData, codes: PackedInt64Array, seeds: int, threads: int = DEFAULT_THREADS, progress: Callable = Callable(), chunk_size: int = CHUNK_SIZE, first_seed: int = 1) -> Array[BuildResult]:
 	var entries: Array[PartData] = palette(mission)
 	var evaluator: _Evaluator = _Evaluator.new()
 	evaluator.mission = mission
 	evaluator.seeds = seeds
+	evaluator.first_seed = first_seed
 	evaluator.results.resize(codes.size())
 	while evaluator.offset < codes.size():
 		var count: int = mini(maxi(chunk_size, 1), codes.size() - evaluator.offset)
@@ -226,6 +234,78 @@ static func evaluate(mission: MissionData, codes: PackedInt64Array, seeds: int, 
 		if progress.is_valid():
 			progress.call(evaluator.offset, codes.size())
 	return evaluator.results
+
+
+## The confirmation pass: the top CONFIRM_BUILDS of [param results] by
+## rank() (all of them when fewer) re-run against [param confirm_seeds] fresh
+## seeds, [param ranking_seeds] + 1 onward, disjoint from the ranking seeds
+## 1..[param ranking_seeds]. Results come back in ranking order; empty when
+## [param confirm_seeds] is 0.
+static func confirm(mission: MissionData, results: Array[BuildResult], ranking_seeds: int, confirm_seeds: int, threads: int = DEFAULT_THREADS) -> Array[BuildResult]:
+	if confirm_seeds <= 0:
+		return []
+	return evaluate(mission, top_codes(results, CONFIRM_BUILDS), confirm_seeds, threads, Callable(), CHUNK_SIZE, ranking_seeds + 1)
+
+
+## Codes of the best [param count] results by rank(), best first.
+static func top_codes(results: Array[BuildResult], count: int) -> PackedInt64Array:
+	var ranked: Array[BuildResult] = rank(results)
+	var codes: PackedInt64Array = PackedInt64Array()
+	for i: int in mini(count, ranked.size()):
+		codes.append(ranked[i].code)
+	return codes
+
+
+## True when the build screen's readout shows both requirements met at launch:
+## MissionReadout.cargo_met and MissionReadout.fuel_met (EXACT fuel counts).
+static func readout_valid(code: int, entries: Array[PartData], mission: MissionData) -> bool:
+	var build: ShipBuild = decode(code, entries)
+	return MissionReadout.cargo_met(build, mission) and MissionReadout.fuel_met(build, mission)
+
+
+## The codes in [param results] that are readout_valid(), as a set.
+static func readout_valid_codes(results: Array[BuildResult], mission: MissionData) -> Dictionary[int, bool]:
+	var entries: Array[PartData] = palette(mission)
+	var valid: Dictionary[int, bool] = {}
+	for result: BuildResult in results:
+		if readout_valid(result.code, entries, mission):
+			valid[result.code] = true
+	return valid
+
+
+## Middle value of [param values] (any order); the mean of the two middle
+## values for an even count; 0.0 when empty.
+@warning_ignore("integer_division")
+static func median(values: PackedFloat64Array) -> float:
+	if values.is_empty():
+		return 0.0
+	var sorted: PackedFloat64Array = values.duplicate()
+	sorted.sort()
+	var middle: int = sorted.size() / 2
+	if sorted.size() % 2 == 1:
+		return sorted[middle]
+	return (sorted[middle - 1] + sorted[middle]) / 2.0
+
+
+## Distribution row of a build: 0 for exactly 0%, 1..10 for the bands above
+## 0% to below 10%, 10% to below 20%, ..., 90% to below 100%, and 11 for
+## exactly 100%. Integer arithmetic, so band edges are exact.
+@warning_ignore("integer_division")
+static func distribution_bucket(result: BuildResult) -> int:
+	if result.runs <= 0 or result.wins <= 0:
+		return 0
+	if result.wins >= result.runs:
+		return DISTRIBUTION_BUCKETS - 1
+	return 1 + (result.wins * 10) / result.runs
+
+
+## Build count per distribution_bucket() row.
+static func distribution(results: Array[BuildResult]) -> PackedInt64Array:
+	var counts: PackedInt64Array = PackedInt64Array()
+	counts.resize(DISTRIBUTION_BUCKETS)
+	for result: BuildResult in results:
+		counts[distribution_bucket(result)] += 1
+	return counts
 
 
 ## Every [param count]-th code starting at [param index] (0-based): shard

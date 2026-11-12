@@ -4,7 +4,8 @@ extends SceneTree
 ## _bmad-output/balance/. Run from the project root:
 ##   <godot-console> --headless --path . -s res://tools/balance/run_balance.gd -- [flags]
 ## Flags: --builds=N|all (default 20000), --seeds=N (default 500, minimum 500),
-## --sample-seed=N (default 1), --mission=<id or res:// path> (default cargo_run).
+## --sample-seed=N (default 1), --mission=<id or res:// path> (default cargo_run),
+## --confirm-seeds=N (default 5000, 0 skips the confirmation pass).
 ##
 ## Each run allocates many script objects and Godot serializes object creation
 ## engine-wide, so threads alone barely scale. The build list is therefore
@@ -19,6 +20,7 @@ const BalanceReport = preload("res://tools/balance/balance_report.gd")
 const SCRIPT_PATH: String = "res://tools/balance/run_balance.gd"
 const DEFAULT_BUILDS: int = 20000
 const DEFAULT_SAMPLE_SEED: int = 1
+const DEFAULT_CONFIRM_SEEDS: int = 5000
 const DEFAULT_MISSION: String = "cargo_run"
 const MISSION_DIR: String = "res://data/missions/"
 const OUTPUT_DIR: String = "res://_bmad-output/balance"
@@ -30,7 +32,8 @@ const USAGE: String = """Usage: <godot-console> --headless --path . -s res://too
   --builds=N|all     launchable builds to evaluate (default 20000; all or >= the launchable total = every one)
   --seeds=N          seeds per build, 1..N (default 500, minimum 500)
   --sample-seed=N    seed for picking the build sample (default 1)
-  --mission=ID|PATH  mission id under res://data/missions/ or a res:// path (default cargo_run)"""
+  --mission=ID|PATH  mission id under res://data/missions/ or a res:// path (default cargo_run)
+  --confirm-seeds=N  fresh seeds N+1.. to re-run the top 20 builds on (default 5000, 0 = skip)"""
 
 
 ## Collects shard results from worker tasks, guarded by a mutex.
@@ -124,6 +127,13 @@ func _run() -> int:
 				printerr("No result came back for build %d." % code)
 				return 1
 			results.append(shards.results[code])
+	var confirm_seeds: int = options["confirm_seeds"]
+	var confirmed: Array[BalanceSim.BuildResult] = []
+	if confirm_seeds > 0:
+		print("Confirming the top %d builds x %d fresh seeds (%d..%d)..." % [
+			mini(BalanceSim.CONFIRM_BUILDS, results.size()), confirm_seeds, seeds + 1, seeds + confirm_seeds])
+		confirmed = BalanceSim.confirm(mission, results, seeds, confirm_seeds)
+	var valid: Dictionary[int, bool] = BalanceSim.readout_valid_codes(results, mission)
 	var runtime: float = float(Time.get_ticks_msec() - started) / 1000.0
 
 	var meta: Dictionary = {
@@ -134,8 +144,9 @@ func _run() -> int:
 		"seeds": seeds,
 		"sample_seed": sample_seed,
 		"runtime_seconds": runtime,
+		"confirm_seeds": confirm_seeds,
 	}
-	var report: String = BalanceReport.build(mission, results, meta)
+	var report: String = BalanceReport.build(mission, results, meta, valid, confirmed)
 
 	var path: String = ProjectSettings.globalize_path(OUTPUT_DIR).path_join("balance-%s.md" % _file_stamp())
 	var write_error: String = write_report(path, report)
@@ -185,8 +196,8 @@ func _run_shard(mission: MissionData, requested: int, sample_seed: int, seeds: i
 	return 0
 
 
-## Parses user args (after "--"). Returns builds (0 = all), seeds, sample_seed
-## and mission (a res:// path), plus shard_index and shard_count for the
+## Parses user args (after "--"). Returns builds (0 = all), seeds, sample_seed,
+## mission (a res:// path) and confirm_seeds (0 = skip), plus shard_index and shard_count for the
 ## internal --shard=i/n flag; or "error" with a message; or "help".
 static func parse_args(args: PackedStringArray) -> Dictionary:
 	var options: Dictionary = {
@@ -194,6 +205,7 @@ static func parse_args(args: PackedStringArray) -> Dictionary:
 		"seeds": BalanceSim.MIN_SEEDS,
 		"sample_seed": DEFAULT_SAMPLE_SEED,
 		"mission": MISSION_DIR.path_join(DEFAULT_MISSION + ".tres"),
+		"confirm_seeds": DEFAULT_CONFIRM_SEEDS,
 	}
 	for arg: String in args:
 		if arg == "--help" or arg == "-h":
@@ -219,6 +231,10 @@ static func parse_args(args: PackedStringArray) -> Dictionary:
 				if not value.is_valid_int():
 					return {"error": "--sample-seed must be an integer (got '%s')." % value}
 				options["sample_seed"] = value.to_int()
+			"confirm-seeds":
+				if not value.is_valid_int() or value.to_int() < 0:
+					return {"error": "--confirm-seeds must be an integer >= 0 (got '%s')." % value}
+				options["confirm_seeds"] = value.to_int()
 			"mission":
 				if value.is_empty():
 					return {"error": "--mission needs a value."}

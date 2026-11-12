@@ -14,5 +14,13 @@ C:\tools\godot\Godot_v4.7.2-stable_win64_console.exe --headless --path . -s res:
 | `--seeds=N` | `500` | Seeds per build (1..N, same for every build). Minimum 500. |
 | `--sample-seed=N` | `1` | Seed for picking the build sample. Same flags give the same builds and numbers. |
 | `--mission=ID` | `cargo_run` | Mission id under `res://data/missions/`, or a full `res://` path. |
+| `--confirm-seeds=C` | `5000` | Fresh seeds for the confirmation pass: the top 20 builds are re-run on seeds N+1..N+C, disjoint from the ranking seeds. `0` skips the pass. |
 
-The default run takes about two minutes on a 16-thread machine (it splits the work across one child Godot process per core). The tool lives in `tools/balance/` behind a `.gdignore`, so it is never imported or exported.
+Besides the overall stats, top/bottom lists, part table and tuning snapshot, the report has two sections after Overall:
+
+- **Readout-valid builds**: the evaluated builds whose build-screen readout shows cargo and fuel both met at launch (`MissionReadout.cargo_met` and `fuel_met`; exact fuel counts), the ones a player would actually launch. Count and share, average and median win rate, and a win-rate distribution table (exactly 0%, 10-point bands, exactly 100%) for all evaluated builds next to the readout-valid ones.
+- **Confirmation pass**: the top 20 re-ranked by their win rate on the fresh seeds, with original rank, ranking win rate, confirmed win rate and the difference in percentage points. Builds that ranked high on lucky seeds drop here.
+
+The default run takes about two and a half minutes on a 16-thread machine (it splits the work across one child Godot process per core; the confirmation pass adds about 10 s). The tool lives in `tools/balance/` behind a `.gdignore`, so it is never imported or exported.
+
+Reports in `_bmad-output/balance/` are committed to git, so tuning changes can be compared run against run.

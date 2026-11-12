@@ -13,8 +13,12 @@ const EMPTY_LETTER: String = "."
 ## [code]timestamp[/code] (String), [code]commit[/code] (String or null),
 ## [code]mission_id[/code] (String), [code]launchable_total[/code] (int),
 ## [code]seeds[/code] (int), [code]sample_seed[/code] (int) and
-## [code]runtime_seconds[/code] (float).
-static func build(mission: MissionData, results: Array[BalanceSim.BuildResult], meta: Dictionary) -> String:
+## [code]runtime_seconds[/code] (float), and optionally
+## [code]confirm_seeds[/code] (int; 0 or absent = confirmation skipped).
+## [param valid] is the set of readout-valid codes among [param results]
+## (BalanceSim.readout_valid_codes). [param confirmed] holds the confirmation
+## pass results (BalanceSim.confirm), in any order.
+static func build(mission: MissionData, results: Array[BalanceSim.BuildResult], meta: Dictionary, valid: Dictionary[int, bool] = {}, confirmed: Array[BalanceSim.BuildResult] = []) -> String:
 	var entries: Array[PartData] = BalanceSim.palette(mission)
 	var letters: PackedStringArray = part_letters(entries)
 	var ranked: Array[BalanceSim.BuildResult] = BalanceSim.rank(results)
@@ -24,6 +28,8 @@ static func build(mission: MissionData, results: Array[BalanceSim.BuildResult], 
 	_header(lines, mission, ranked, meta)
 	_legend(lines, entries, letters)
 	_summary(lines, ranked)
+	_readout_valid(lines, ranked, valid)
+	_confirmation(lines, ranked, confirmed, meta, entries, letters)
 	_top(lines, ranked, entries, letters)
 	_bottom(lines, ranked, entries, letters)
 	_part_table(lines, ranked, entries)
@@ -119,6 +125,90 @@ static func _summary(lines: PackedStringArray, ranked: Array[BalanceSim.BuildRes
 			continue
 		lines.append("| %s | %d | %s |" % [_reason_id(reason), losses[reason], percent(losses[reason], runs)])
 	lines.append("| **total** | %d | |" % runs)
+	lines.append("")
+
+
+static func _readout_valid(lines: PackedStringArray, ranked: Array[BalanceSim.BuildResult], valid: Dictionary[int, bool]) -> void:
+	var group: Array[BalanceSim.BuildResult] = []
+	for result: BalanceSim.BuildResult in ranked:
+		if valid.has(result.code):
+			group.append(result)
+	lines.append("## Readout-valid builds")
+	lines.append("")
+	lines.append("Evaluated builds whose build-screen readout shows both requirements met at launch " \
+			+ "(`MissionReadout.cargo_met` and `MissionReadout.fuel_met`; exact fuel counts as met). " \
+			+ "A subset of the builds above, on the same seeds.")
+	lines.append("")
+	lines.append("Readout-valid builds: **%d** of %d evaluated (%s)." % [
+		group.size(), ranked.size(), percent(group.size(), ranked.size())])
+	lines.append("")
+	if group.is_empty():
+		lines.append("No evaluated build passes the readout, so this group has no stats.")
+		lines.append("")
+		return
+	var rates: PackedFloat64Array = PackedFloat64Array()
+	var rate_sum: float = 0.0
+	for result: BalanceSim.BuildResult in group:
+		rates.append(result.win_rate())
+		rate_sum += result.win_rate()
+	lines.append("Average win rate: **%.1f%%**. Median win rate: **%.1f%%**." % [
+		100.0 * rate_sum / float(group.size()), 100.0 * BalanceSim.median(rates)])
+	lines.append("")
+	var all_counts: PackedInt64Array = BalanceSim.distribution(ranked)
+	var valid_counts: PackedInt64Array = BalanceSim.distribution(group)
+	lines.append("| Win rate | All evaluated | Share | Readout-valid | Share |")
+	lines.append("|---|---:|---:|---:|---:|")
+	for bucket: int in BalanceSim.DISTRIBUTION_BUCKETS:
+		lines.append("| %s | %d | %s | %d | %s |" % [
+			distribution_label(bucket), all_counts[bucket], percent(all_counts[bucket], ranked.size()),
+			valid_counts[bucket], percent(valid_counts[bucket], group.size())])
+	lines.append("")
+
+
+## Row label for a BalanceSim.distribution_bucket() index.
+static func distribution_label(bucket: int) -> String:
+	if bucket <= 0:
+		return "0%"
+	if bucket >= BalanceSim.DISTRIBUTION_BUCKETS - 1:
+		return "100%"
+	if bucket == 1:
+		return "above 0% to below 10%"
+	return "%d%% to below %d%%" % [(bucket - 1) * 10, bucket * 10]
+
+
+static func _confirmation(lines: PackedStringArray, ranked: Array[BalanceSim.BuildResult], confirmed: Array[BalanceSim.BuildResult], meta: Dictionary, entries: Array[PartData], letters: PackedStringArray) -> void:
+	var seeds: int = int(meta.get("seeds", 0))
+	var confirm_seeds: int = int(meta.get("confirm_seeds", 0))
+	lines.append("## Confirmation pass")
+	lines.append("")
+	if confirm_seeds <= 0:
+		lines.append("Skipped (`--confirm-seeds=0`).")
+		lines.append("")
+		return
+	var original: Dictionary[int, int] = {}
+	for i: int in ranked.size():
+		original[ranked[i].code] = i
+	var reranked: Array[BalanceSim.BuildResult] = BalanceSim.rank(confirmed)
+	lines.append("The top %d builds by ranking win rate (seeds 1..%d) re-run on %d fresh seeds (seeds %d..%d), " % [
+		reranked.size(), seeds, confirm_seeds, seeds + 1, seeds + confirm_seeds] \
+			+ "ranked by confirmed win rate. Difference is confirmed minus ranking, in percentage points.")
+	lines.append("")
+	lines.append("| Rank | Layout | Original rank | Ranking win rate | Confirmed win rate | Difference |")
+	lines.append("|---:|---|---:|---:|---:|---:|")
+	for i: int in reranked.size():
+		var result: BalanceSim.BuildResult = reranked[i]
+		var index: int = original.get(result.code, -1)
+		var rank_text: String = "—"
+		var ranking_rate: String = "—"
+		var difference: String = "—"
+		if index >= 0:
+			var before: BalanceSim.BuildResult = ranked[index]
+			rank_text = str(index + 1)
+			ranking_rate = percent(before.wins, before.runs)
+			difference = "%+.1f pp" % (100.0 * (result.win_rate() - before.win_rate()))
+		lines.append("| %d | `%s` | %s | %s | %s | %s |" % [
+			i + 1, layout_text(result.code, entries, letters), rank_text, ranking_rate,
+			percent(result.wins, result.runs), difference])
 	lines.append("")
 
 
