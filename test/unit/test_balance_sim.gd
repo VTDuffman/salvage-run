@@ -121,10 +121,15 @@ func test_evaluate_matches_resolver_and_is_deterministic() -> void:
 	var codes: PackedInt64Array = BalanceSim.select_builds(CARGO_RUN, 6, 3)
 	var first: Array[BalanceSim.BuildResult] = BalanceSim.evaluate(CARGO_RUN, codes, 30)
 	var second: Array[BalanceSim.BuildResult] = BalanceSim.evaluate(CARGO_RUN, codes, 30)
+	# Chunks of 4 over 6 codes: a full chunk then a partial one.
+	var chunked: Array[BalanceSim.BuildResult] = BalanceSim.evaluate(
+			CARGO_RUN, codes, 30, BalanceSim.DEFAULT_THREADS, Callable(), 4)
 	var entries: Array[PartData] = BalanceSim.palette(CARGO_RUN)
 	assert_eq(first.size(), codes.size())
+	assert_eq(chunked.size(), codes.size())
 	for i: int in codes.size():
 		assert_eq(first[i].code, codes[i])
+		assert_eq(chunked[i].code, codes[i])
 		assert_eq(first[i].runs, 30)
 		assert_eq(first[i].wins, second[i].wins)
 		assert_eq(first[i].losses, second[i].losses)
@@ -140,6 +145,8 @@ func test_evaluate_matches_resolver_and_is_deterministic() -> void:
 				losses[run.loss_reason] += 1
 		assert_eq(first[i].wins, wins)
 		assert_eq(first[i].losses, losses)
+		assert_eq(chunked[i].wins, wins)
+		assert_eq(chunked[i].losses, losses)
 
 
 func test_rank_orders_by_wins_then_code() -> void:
@@ -180,6 +187,22 @@ func test_bottom_list_notes_ties_at_the_lowest_rate() -> void:
 	assert_string_contains(report, "25 builds share the lowest win rate (0.0%); 20 shown, by layout code.")
 
 
+func test_exhaustive_header_and_all_ties_shown() -> void:
+	var mission: MissionData = _tiny([THRUSTER, CARGO_HOLD], 2)
+	var codes: PackedInt64Array = BalanceSim.select_builds(mission, 0, 1)
+	var total: int = BalanceSim.launchable_total(mission)
+	assert_eq(codes.size(), total)
+	var results: Array[BalanceSim.BuildResult] = []
+	for i: int in codes.size():
+		var wins: int = 0 if i < 12 else 100
+		results.append(_result(codes[i], wins, 500, 500 - wins))
+	var meta: Dictionary = META.duplicate()
+	meta["launchable_total"] = total
+	var report: String = BalanceReport.build(mission, results, meta)
+	assert_string_contains(report, "%d of %d launchable (exhaustive)" % [total, total])
+	assert_string_contains(report, "12 builds share the lowest win rate (0.0%); all shown, by layout code.")
+
+
 func test_seed_minimum() -> void:
 	assert_string_contains(BalanceSim.seeds_error(100), "500")
 	assert_eq(BalanceSim.seeds_error(499).is_empty(), false)
@@ -205,6 +228,62 @@ func test_parse_args() -> void:
 	var shard: Dictionary = RunBalance.parse_args(PackedStringArray(["--shard=1/4"]))
 	assert_eq(shard["shard_index"], 1)
 	assert_eq(shard["shard_count"], 4)
+
+
+func test_write_report_creates_missing_folders() -> void:
+	var root: String = ProjectSettings.globalize_path("user://test_balance_out")
+	var path: String = root.path_join("nested/report.md")
+	_remove_tree(root)
+	assert_eq(RunBalance.write_report(path, "# hi\n"), "")
+	assert_eq(FileAccess.get_file_as_string(path), "# hi\n")
+	DirAccess.remove_absolute(path)
+	DirAccess.remove_absolute(root.path_join("nested"))
+	DirAccess.remove_absolute(root)
+
+
+func test_write_report_fails_when_folder_cannot_be_made() -> void:
+	var blocker: String = ProjectSettings.globalize_path("user://test_balance_blocker")
+	_remove_tree(blocker)
+	var file: FileAccess = FileAccess.open(blocker, FileAccess.WRITE)
+	file.close()
+	var message: String = RunBalance.write_report(blocker.path_join("sub/report.md"), "x")
+	assert_string_contains(message, "Could not")
+	assert_engine_error("Could not create directory")
+	DirAccess.remove_absolute(blocker)
+
+
+func test_shard_args_round_trip_through_parse_args() -> void:
+	var parents: Array[Dictionary] = [
+		RunBalance.parse_args(PackedStringArray(["--builds=all", "--seeds=600", "--sample-seed=9", "--mission=cargo_run"])),
+		RunBalance.parse_args(PackedStringArray(["--builds=1234", "--sample-seed=-3", "--mission=res://data/missions/cargo_run.tres"])),
+	]
+	for parent: Dictionary in parents:
+		var args: PackedStringArray = RunBalance.shard_args(parent, 2, 5)
+		var split: int = args.find("--")
+		assert_gt(split, -1)
+		assert_eq(args[args.find("-s") + 1], "res://tools/balance/run_balance.gd")
+		var child: Dictionary = RunBalance.parse_args(args.slice(split + 1))
+		assert_false(child.has("error"), str(child.get("error", "")))
+		for key: String in ["builds", "seeds", "sample_seed", "mission"]:
+			assert_eq(child[key], parent[key], key)
+		assert_eq(child["shard_index"], 2)
+		assert_eq(child["shard_count"], 5)
+	assert_eq(parents[0]["builds"], 0)
+	assert_eq(parents[0]["seeds"], 600)
+
+
+## Deletes a file, or a folder and everything in it, if present.
+func _remove_tree(path: String) -> void:
+	if FileAccess.file_exists(path):
+		DirAccess.remove_absolute(path)
+		return
+	if not DirAccess.dir_exists_absolute(path):
+		return
+	for file: String in DirAccess.get_files_at(path):
+		DirAccess.remove_absolute(path.path_join(file))
+	for sub: String in DirAccess.get_directories_at(path):
+		_remove_tree(path.path_join(sub))
+	DirAccess.remove_absolute(path)
 
 
 func test_shards_cover_every_build_once() -> void:

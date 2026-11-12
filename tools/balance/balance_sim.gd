@@ -187,10 +187,11 @@ static func select_builds(mission: MissionData, requested: int, sample_seed: int
 	else:
 		# Sparse sample: draw layouts uniformly, keep new launchable ones.
 		var entries: Array[PartData] = palette(mission)
-		var last: int = layout_count(entries.size()) - 1
 		var seen: Dictionary[int, bool] = {}
 		while codes.size() < requested:
-			var code: int = rng.randi_range(0, last)
+			var code: int = 0
+			for _cell: int in CELLS:
+				code = code * entries.size() + rng.randi_range(0, entries.size() - 1)
 			if seen.has(code):
 				continue
 			seen[code] = true
@@ -205,15 +206,16 @@ static func select_builds(mission: MissionData, requested: int, sample_seed: int
 ## allocates many script objects and object creation is serialized engine-wide,
 ## so more than a few threads per process is slower, not faster; scale out
 ## with shard() and separate processes instead. [param progress] is called
-## with (done, total) after each chunk. Results come back in [param codes] order.
-static func evaluate(mission: MissionData, codes: PackedInt64Array, seeds: int, threads: int = DEFAULT_THREADS, progress: Callable = Callable()) -> Array[BuildResult]:
+## with (done, total) after each chunk of [param chunk_size] builds. Results
+## come back in [param codes] order.
+static func evaluate(mission: MissionData, codes: PackedInt64Array, seeds: int, threads: int = DEFAULT_THREADS, progress: Callable = Callable(), chunk_size: int = CHUNK_SIZE) -> Array[BuildResult]:
 	var entries: Array[PartData] = palette(mission)
 	var evaluator: _Evaluator = _Evaluator.new()
 	evaluator.mission = mission
 	evaluator.seeds = seeds
 	evaluator.results.resize(codes.size())
 	while evaluator.offset < codes.size():
-		var count: int = mini(CHUNK_SIZE, codes.size() - evaluator.offset)
+		var count: int = mini(maxi(chunk_size, 1), codes.size() - evaluator.offset)
 		evaluator.codes = codes.slice(evaluator.offset, evaluator.offset + count)
 		evaluator.builds.clear()
 		for code: int in evaluator.codes:

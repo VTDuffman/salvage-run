@@ -24,6 +24,8 @@ const MISSION_DIR: String = "res://data/missions/"
 const OUTPUT_DIR: String = "res://_bmad-output/balance"
 ## Below this many builds per process, child start-up costs more than it saves.
 const MIN_BUILDS_PER_SHARD: int = 25
+## Lines of a failed child's output quoted in the error message.
+const ERROR_TAIL_LINES: int = 20
 const USAGE: String = """Usage: <godot-console> --headless --path . -s res://tools/balance/run_balance.gd -- [flags]
   --builds=N|all     launchable builds to evaluate (default 20000; all or >= the launchable total = every one)
   --seeds=N          seeds per build, 1..N (default 500, minimum 500)
@@ -35,7 +37,8 @@ const USAGE: String = """Usage: <godot-console> --headless --path . -s res://too
 class _Shards:
 	extends RefCounted
 
-	var args: PackedStringArray = PackedStringArray()
+	## Full child arg list per shard index, from shard_args().
+	var arg_lists: Array[PackedStringArray] = []
 	var count: int = 1
 	var results: Dictionary[int, BalanceSim.BuildResult] = {}
 	var errors: PackedStringArray = PackedStringArray()
@@ -43,19 +46,20 @@ class _Shards:
 	var mutex: Mutex = Mutex.new()
 
 	func run_shard(index: int) -> void:
-		var shard_args: PackedStringArray = args.duplicate()
-		shard_args.append("--shard=%d/%d" % [index, count])
 		var output: Array = []
-		var exit_code: int = OS.execute(OS.get_executable_path(), shard_args, output, false)
-		var parsed: Array[BalanceSim.BuildResult] = []
+		var exit_code: int = OS.execute(OS.get_executable_path(), arg_lists[index], output, true)
+		var lines: PackedStringArray = PackedStringArray()
 		for chunk: Variant in output:
-			for line: String in String(chunk).split("\n", false):
-				var result: BalanceSim.BuildResult = BalanceSim.result_from_line(line)
-				if result != null:
-					parsed.append(result)
+			lines.append_array(String(chunk).split("\n", false))
+		var parsed: Array[BalanceSim.BuildResult] = []
+		for line: String in lines:
+			var result: BalanceSim.BuildResult = BalanceSim.result_from_line(line)
+			if result != null:
+				parsed.append(result)
 		mutex.lock()
 		if exit_code != 0:
-			errors.append("Shard %d/%d exited with code %d." % [index, count, exit_code])
+			var tail: PackedStringArray = lines.slice(maxi(lines.size() - ERROR_TAIL_LINES, 0))
+			errors.append("Shard %d/%d exited with code %d. Last output:\n%s" % [index, count, exit_code, "\n".join(tail)])
 		for result: BalanceSim.BuildResult in parsed:
 			results[result.code] = result
 		done += 1
@@ -108,11 +112,8 @@ func _run() -> int:
 		print("Evaluating %d builds x %d seeds in %d processes..." % [codes.size(), seeds, shard_count])
 		var shards: _Shards = _Shards.new()
 		shards.count = shard_count
-		shards.args = PackedStringArray([
-			"--headless", "--path", ProjectSettings.globalize_path("res://"), "-s", SCRIPT_PATH, "--",
-			"--builds=%s" % ("all" if requested <= 0 else str(requested)),
-			"--seeds=%d" % seeds, "--sample-seed=%d" % sample_seed, "--mission=%s" % mission_path,
-		])
+		for index: int in shard_count:
+			shards.arg_lists.append(shard_args(options, index, shard_count))
 		var task: int = WorkerThreadPool.add_group_task(shards.run_shard, shard_count, shard_count, true, "balance_shards")
 		WorkerThreadPool.wait_for_group_task_completion(task)
 		if not shards.errors.is_empty():
@@ -136,20 +137,43 @@ func _run() -> int:
 	}
 	var report: String = BalanceReport.build(mission, results, meta)
 
-	var dir: String = ProjectSettings.globalize_path(OUTPUT_DIR)
-	var dir_error: Error = DirAccess.make_dir_recursive_absolute(dir)
-	if dir_error != OK:
-		printerr("Could not create %s (%s)." % [dir, error_string(dir_error)])
+	var path: String = ProjectSettings.globalize_path(OUTPUT_DIR).path_join("balance-%s.md" % _file_stamp())
+	var write_error: String = write_report(path, report)
+	if not write_error.is_empty():
+		printerr(write_error)
 		return 1
-	var path: String = dir.path_join("balance-%s.md" % _file_stamp())
-	var file: FileAccess = FileAccess.open(path, FileAccess.WRITE)
-	if file == null:
-		printerr("Could not write %s (%s)." % [path, error_string(FileAccess.get_open_error())])
-		return 1
-	file.store_string(report)
-	file.close()
 	print("Report written: %s" % path)
 	return 0
+
+
+## The full command line for child process [param index] of [param count]:
+## Godot flags, then after "--" the parent's parse_args() [param options]
+## re-encoded, plus --shard=index/count.
+static func shard_args(options: Dictionary, index: int, count: int) -> PackedStringArray:
+	var builds: int = options["builds"]
+	return PackedStringArray([
+		"--headless", "--path", ProjectSettings.globalize_path("res://"), "-s", SCRIPT_PATH, "--",
+		"--builds=%s" % ("all" if builds <= 0 else str(builds)),
+		"--seeds=%d" % options["seeds"],
+		"--sample-seed=%d" % options["sample_seed"],
+		"--mission=%s" % options["mission"],
+		"--shard=%d/%d" % [index, count],
+	])
+
+
+## Writes [param text] to [param path], creating missing folders. Returns ""
+## on success, else a message naming the path and the error.
+static func write_report(path: String, text: String) -> String:
+	var dir: String = path.get_base_dir()
+	var dir_error: Error = DirAccess.make_dir_recursive_absolute(dir)
+	if dir_error != OK:
+		return "Could not create %s (%s)." % [dir, error_string(dir_error)]
+	var file: FileAccess = FileAccess.open(path, FileAccess.WRITE)
+	if file == null:
+		return "Could not write %s (%s)." % [path, error_string(FileAccess.get_open_error())]
+	file.store_string(text)
+	file.close()
+	return ""
 
 
 ## Child process: evaluates one shard on this thread and prints result lines.

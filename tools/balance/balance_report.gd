@@ -98,7 +98,7 @@ static func _summary(lines: PackedStringArray, ranked: Array[BalanceSim.BuildRes
 	var rate_sum: float = 0.0
 	var runs: int = 0
 	var wins: int = 0
-	var losses: PackedInt32Array = PackedInt32Array()
+	var losses: PackedInt64Array = PackedInt64Array()
 	losses.resize(RunResult.LossReason.size())
 	for result: BalanceSim.BuildResult in ranked:
 		rate_sum += result.win_rate()
