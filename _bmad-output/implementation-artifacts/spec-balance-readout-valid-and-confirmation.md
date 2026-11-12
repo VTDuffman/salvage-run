@@ -2,7 +2,7 @@
 title: 'Dev tooling: balance report readout-valid group and confirmation pass'
 type: 'feature'
 created: '2026-11-11'
-status: 'in-progress'
+status: 'done'
 baseline_commit: '72629e98507aeefb52789ed79a3c2abc94a63bf9'
 route: 'dispatch'
 review_loop_iteration: 0
@@ -77,3 +77,17 @@ context:
 ## Spec Change Log
 
 ## Review Triage Log
+
+| # | Source | Finding | Verdict | Evidence | Route |
+|---|---|---|---|---|---|
+| 1 | verification-gap, blind, edge | `_run` wiring (meta `confirm_seeds`, `valid`, `confirmed` → `BalanceReport.build`) untested; `build()` defaults silently yield "0 valid" / "Skipped" / empty confirmation table | medium | Pre-verified: no test calls `_run`; report tests pass hand-built values; dropping any argument keeps the suite green | patch |
+| 2 | verification-gap, edge | "Skipped (`--confirm-seeds=0`)" printed when `meta` lacks the key | low | `meta.get("confirm_seeds", 0)` in `_confirmation`; names a flag the user never passed; direct text fix | patch |
+| 3 | blind | `USAGE` uses N for both the confirm count and the ranking seeds | low | `--confirm-seeds=N  fresh seeds N+1..`; direct text fix | patch |
+| 4 | blind | README timing inconsistent ("+~10 s" vs two → two and a half minutes) | low | Both figures in the same README passage; direct text fix | patch |
+| 5 | edge, blind | No upper bound on `--confirm-seeds`; `seeds + confirm_seeds` can overflow | low | Needs a value near int64 max; nobody types that; fix adds a guard | reject |
+| 6 | blind | Confirmation re-runs the overall top 20, not the top readout-valid builds | false | Intent says the top 20 builds, i.e. the existing top list, so this matches what was asked | reject |
+| 7 | blind | Top/Bottom/Confirmation tables don't mark readout-valid builds | low | Real but a feature addition (new column) beyond intent | reject |
+| 8 | blind | All-builds distribution hidden when no build is readout-valid | low | Matrix row asks for no stats; 7.4% of the default sample is valid, so rarely met | reject |
+| 9 | blind | No noise/standard-error note on confirmation rows | low | Feature addition beyond intent | reject |
+| 10 | blind | `--confirm-seeds` has no lower bound (1 allowed) | low | User-chosen value; not in intent; fix adds a rule | reject |
+| 11 | blind | Confirmation runs in-process, not sharded | low | 20 × 5000 runs ≈ 10 s; acceptable; sharding adds surface | reject |

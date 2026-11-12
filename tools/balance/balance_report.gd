@@ -14,7 +14,7 @@ const EMPTY_LETTER: String = "."
 ## [code]mission_id[/code] (String), [code]launchable_total[/code] (int),
 ## [code]seeds[/code] (int), [code]sample_seed[/code] (int) and
 ## [code]runtime_seconds[/code] (float), and optionally
-## [code]confirm_seeds[/code] (int; 0 or absent = confirmation skipped).
+## [code]confirm_seeds[/code] (int; 0 = skipped by flag, absent = not run).
 ## [param valid] is the set of readout-valid codes among [param results]
 ## (BalanceSim.readout_valid_codes). [param confirmed] holds the confirmation
 ## pass results (BalanceSim.confirm), in any order.
@@ -178,11 +178,19 @@ static func distribution_label(bucket: int) -> String:
 
 static func _confirmation(lines: PackedStringArray, ranked: Array[BalanceSim.BuildResult], confirmed: Array[BalanceSim.BuildResult], meta: Dictionary, entries: Array[PartData], letters: PackedStringArray) -> void:
 	var seeds: int = int(meta.get("seeds", 0))
-	var confirm_seeds: int = int(meta.get("confirm_seeds", 0))
 	lines.append("## Confirmation pass")
 	lines.append("")
+	if not meta.has("confirm_seeds"):
+		lines.append("Not run.")
+		lines.append("")
+		return
+	var confirm_seeds: int = int(meta["confirm_seeds"])
 	if confirm_seeds <= 0:
 		lines.append("Skipped (`--confirm-seeds=0`).")
+		lines.append("")
+		return
+	if confirmed.is_empty():
+		lines.append("No builds to confirm.")
 		lines.append("")
 		return
 	var original: Dictionary[int, int] = {}

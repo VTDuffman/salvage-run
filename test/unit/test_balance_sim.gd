@@ -434,6 +434,28 @@ func test_report_confirmation_skipped() -> void:
 	meta["confirm_seeds"] = 0
 	var report: String = BalanceReport.build(CARGO_RUN, results, meta)
 	assert_string_contains(report, "## Confirmation pass\n\nSkipped (`--confirm-seeds=0`).")
+	meta["confirm_seeds"] = 5000
+	assert_string_contains(BalanceReport.build(CARGO_RUN, results, meta),
+			"## Confirmation pass\n\nNo builds to confirm.")
+	assert_string_contains(BalanceReport.build(CARGO_RUN, results, META),
+			"## Confirmation pass\n\nNot run.")
+
+
+func test_build_report_wires_confirmation_and_readout_valid() -> void:
+	var codes: PackedInt64Array = BalanceSim.select_builds(CARGO_RUN, 40, 6)
+	codes.append(BalanceSim.encode(_exact_fuel_build(), BalanceSim.palette(CARGO_RUN)))
+	var results: Array[BalanceSim.BuildResult] = BalanceSim.evaluate(CARGO_RUN, codes, 10)
+	var valid_count: int = BalanceSim.readout_valid_codes(results, CARGO_RUN).size()
+	assert_gt(valid_count, 0)
+	var options: Dictionary = RunBalance.parse_args(PackedStringArray(["--confirm-seeds=12"]))
+	var report: String = RunBalance.build_report(CARGO_RUN, options, results, 1000, Time.get_ticks_msec())
+	assert_string_contains(report, "re-run on 12 fresh seeds (seeds 501..512)")
+	assert_string_contains(report, "Readout-valid builds: **%d** of %d evaluated" % [valid_count, results.size()])
+	assert_string_contains(report, "| 20 | `")
+	options = RunBalance.parse_args(PackedStringArray(["--confirm-seeds=0"]))
+	report = RunBalance.build_report(CARGO_RUN, options, results, 1000, Time.get_ticks_msec())
+	assert_string_contains(report, "## Confirmation pass\n\nSkipped (`--confirm-seeds=0`).")
+	assert_string_contains(report, "Readout-valid builds: **%d** of %d evaluated" % [valid_count, results.size()])
 
 
 func test_report_readout_valid_with_no_valid_builds() -> void:
