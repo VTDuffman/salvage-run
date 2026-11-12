@@ -6,5 +6,5 @@
 script = ExtResource("1_bly10")
 kind = 2
 display_name = "Cargo Hold"
-max_hp = 2
+max_hp = 5
 color = Color(0.627451, 0.47058824, 0.2901961, 1)

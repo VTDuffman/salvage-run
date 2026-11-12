@@ -8,6 +8,6 @@ kind = 5
 display_name = "Fuel Leak"
 direction = 5
 extra_fuel_loss = 2
-counter_threshold = 2
+counter_threshold = 3
 countered_text = "spare tanks covered the leak"
 uncountered_text = "fuel leaked away"

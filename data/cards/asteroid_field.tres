@@ -8,6 +8,6 @@ kind = 1
 display_name = "Asteroid Field"
 direction = 1
 hits = 2
-damage_per_hit = 1
+damage_per_hit = 2
 countered_text = "shields deflected the rocks"
 uncountered_text = "asteroids struck the front"

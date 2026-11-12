@@ -19,3 +19,6 @@
 - source_spec: `_bmad-output/specs/spec-vertical-slice/stories/5-run-playback-scene-log-speed-controls.md`
   summary: In story 6, test that build_screen.run_seed is the seed the played run used and that each launch gets a new one; the return path must also null _run_screen and re-enable build input.
   evidence: Removing rng.randomize() or passing a different seed to resolve keeps every story 5 test green; story 6's Retry/Rebuild is the first code that reads run_seed back.
+- source_spec: `_bmad-output/balance/balance-20261112-032755.md` (story 7 tuning v1)
+  summary: Candidate rule change, decide after playtesting tuning v1, not prototyped. When a Fuel Tank is destroyed, spill a fixed data-driven amount (e.g. a new `PartData.fuel_spill`) instead of clamping fuel to the remaining capacity (`_fuel = mini(_fuel, _fuel_cap())` in RunResolver). MissionReadout would need the same rule.
+  evidence: Data tuning alone reached best 78.6% / readout-valid average 15.3%. Every damage or shield nerf cut the average about as much as the ceiling. The clamp makes an early tank loss a near-certain out_of_fuel, which is the most common loss for top builds (avg 3.4 tanks each, kept as insurance) and produces the near-0% vs near-100% split. A graded spill would make spare tanks less valuable and give a finer tuning lever.
