@@ -9,7 +9,7 @@ Starting values. All of them live in data files and will change during tuning. G
 | Thruster | Required to launch. Works only in the rear row. Outside it, it is inert but still occupies the cell and absorbs hits. | 2 |
 | Fuel Tank | Adds 4 fuel to a shared pool. When a tank is destroyed, the pool is capped at working tanks × 4. | 2 |
 | Cargo Hold | Holds 1 cargo unit. The mission requires a set number intact. | 2 |
-| Shield | Covers its own cell plus its orthogonal neighbors. Absorbs up to 2 damage per card; capacity refreshes every card. Solar Flare ignores capacity: covered parts take no flare damage. | 2 |
+| Shield | Covers its orthogonal neighbors only, not its own cell. Absorbs up to 2 damage per card; capacity refreshes every card. Solar Flare ignores capacity: covered parts take no flare damage. | 2 |
 | Hull Plating | No function. Pure protection. | 4 |
 | Gun | Cancels Pirate Ambush when in the front row. Outside it, it is inert but still occupies the cell and absorbs hits. | 2 |
 

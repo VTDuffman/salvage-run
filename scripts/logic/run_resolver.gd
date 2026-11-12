@@ -245,14 +245,15 @@ func _flare_strike(event: RunResult.CardEvent, card: CardData, cell: Vector2i) -
 	event.hits.append(hit)
 
 
-## The first working shield in ShipBuild.cells() order whose coverage holds
+## The first working shield in ShipBuild.cells() order whose coverage (its
+## orthogonal neighbors, not its own cell) holds
 ## [param cell], whatever its capacity left, or NO_CELL if none covers it.
 func _first_covering_shield(cell: Vector2i) -> Vector2i:
 	for shield: Vector2i in _cells:
 		if _parts[shield].shield_capacity <= 0 or not _is_working(shield):
 			continue
 		var offset: Vector2i = (shield - cell).abs()
-		if offset.x + offset.y <= 1:
+		if offset.x + offset.y == 1:
 			return shield
 	return RunResult.NO_CELL
 
@@ -266,7 +267,7 @@ func _best_covering_shield(cell: Vector2i) -> Vector2i:
 		if not _is_working(shield) or _shield_left[shield] <= best_left:
 			continue
 		var offset: Vector2i = (shield - cell).abs()
-		if offset.x + offset.y <= 1:
+		if offset.x + offset.y == 1:
 			best = shield
 			best_left = _shield_left[shield]
 	return best

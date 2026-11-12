@@ -10,7 +10,7 @@ The damage model is a starting proposal. Tune it freely, but keep it in pure log
 
 ## Shields
 
-- Coverage is the shield's own cell plus its orthogonal neighbors. Only working (not destroyed) shields cover.
+- Coverage is the shield's orthogonal neighbors only, not its own cell: a shield can be hit and destroyed like any other part. Only working (not destroyed) shields cover.
 - When a cell struck by a directional hit is inside any coverage, the damage is drawn from shield capacity instead of the part.
 - Each shield has 2 capacity per card, refreshed at the start of every card.
 - When a cell is covered by more than one shield, damage is drawn from the shield with the most capacity remaining.

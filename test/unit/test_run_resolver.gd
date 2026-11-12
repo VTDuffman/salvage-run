@@ -321,23 +321,34 @@ func test_solar_flare_uncountered_damages_every_part_front_first() -> void:
 
 
 func test_solar_flare_countered_by_shield_coverage() -> void:
-	var layout: Dictionary[Vector2i, PartData] = {Vector2i(1, 1): SHIELD, REAR_MIDDLE: THRUSTER}
+	# Two side-by-side shields cover each other, and (1,1) covers the thruster.
+	var layout: Dictionary[Vector2i, PartData] = {
+		Vector2i(0, 1): SHIELD, Vector2i(1, 1): SHIELD, REAR_MIDDLE: THRUSTER,
+	}
 	var event: RunResult.CardEvent = _resolve_one(SOLAR_FLARE, layout)
 	assert_true(event.countered)
+	assert_eq(event.hits.size(), 3)
 	for hit: RunResult.HitEvent in event.hits:
 		assert_eq(hit.absorbed, 1)
 		assert_eq(hit.damage_to_part, 0)
-		assert_eq(hit.shield_cell, Vector2i(1, 1))
+		assert_ne(hit.shield_cell, NO_CELL)
+		assert_ne(hit.shield_cell, hit.struck_cell, "a shield never covers itself")
 
 
 func test_solar_flare_ignores_shield_capacity() -> void:
-	# Five covered parts, more than the shield's capacity of 2: all are spared.
+	# Four covered neighbors, more than the shield's capacity of 2: all are
+	# spared. The shield itself is not covered and takes the flare.
 	var layout: Dictionary[Vector2i, PartData] = _plus_layout()
-	assert_lt(SHIELD.shield_capacity, layout.size(), "test needs more covered parts than capacity")
+	assert_lt(SHIELD.shield_capacity, layout.size() - 1, "test needs more covered parts than capacity")
 	var event: RunResult.CardEvent = _resolve_one(SOLAR_FLARE, layout)
-	assert_true(event.countered)
+	assert_false(event.countered, "the shield's own cell is struck")
 	assert_eq(event.hits.size(), 5)
 	for hit: RunResult.HitEvent in event.hits:
+		if hit.struck_cell == Vector2i(1, 1):
+			assert_eq(hit.absorbed, 0)
+			assert_eq(hit.damage_to_part, 1)
+			assert_eq(hit.shield_cell, NO_CELL)
+			continue
 		assert_eq(hit.absorbed, 1, "%s" % hit.struck_cell)
 		assert_eq(hit.damage_to_part, 0, "%s" % hit.struck_cell)
 		assert_eq(hit.shield_cell, Vector2i(1, 1))
@@ -348,9 +359,9 @@ func test_solar_flare_spares_covered_parts_with_capacity_one() -> void:
 	var layout: Dictionary[Vector2i, PartData] = _plus_layout()
 	layout[Vector2i(1, 1)] = weak_shield
 	var event: RunResult.CardEvent = _resolve_one(SOLAR_FLARE, layout)
-	assert_true(event.countered)
 	for hit: RunResult.HitEvent in event.hits:
-		assert_eq(hit.damage_to_part, 0, "%s" % hit.struck_cell)
+		if hit.struck_cell != Vector2i(1, 1):
+			assert_eq(hit.damage_to_part, 0, "%s" % hit.struck_cell)
 
 
 func test_solar_flare_damages_only_parts_outside_coverage() -> void:
@@ -370,17 +381,27 @@ func test_solar_flare_damages_only_parts_outside_coverage() -> void:
 			assert_eq(hit.damage_to_part, 1)
 			assert_eq(hit.shield_cell, RunResult.NO_CELL)
 			damaged.append(hit.struck_cell)
-	assert_eq(spared, [Vector2i(0, 0), Vector2i(1, 0), Vector2i(0, 1)] as Array[Vector2i])
-	assert_eq(damaged, [Vector2i(2, 0), Vector2i(2, 1), REAR_MIDDLE] as Array[Vector2i])
+	assert_eq(spared, [Vector2i(1, 0), Vector2i(0, 1)] as Array[Vector2i])
+	assert_eq(damaged, [Vector2i(0, 0), Vector2i(2, 0), Vector2i(2, 1), REAR_MIDDLE] as Array[Vector2i])
 
 
 func test_solar_flare_does_not_draw_shield_capacity() -> void:
-	# Three flare passes strike the five covered parts 15 times against a
+	# Three flare passes strike the four covered neighbors 12 times against a
 	# capacity of 2; none get through because the flare never draws capacity.
+	# The shield is tough enough to survive its own three flare hits.
+	var tough_shield: PartData = _part(PartData.Kind.SHIELD, 4, 2)
 	var layout: Dictionary[Vector2i, PartData] = _plus_layout()
+	layout[Vector2i(1, 1)] = tough_shield
 	var event: RunResult.CardEvent = _resolve_one(_card(CardData.Kind.SOLAR_FLARE, 3, 1), layout)
-	assert_true(event.countered, "three flare passes over five covered parts, none damaged")
 	assert_eq(event.hits.size(), 15)
+	var neighbor_hits: int = 0
+	for hit: RunResult.HitEvent in event.hits:
+		if hit.struck_cell == Vector2i(1, 1):
+			assert_eq(hit.damage_to_part, 1)
+			continue
+		neighbor_hits += 1
+		assert_eq(hit.damage_to_part, 0, "%s" % hit.struck_cell)
+	assert_eq(neighbor_hits, 12)
 
 
 func test_solar_flare_coverage_needs_shield_capacity_in_data() -> void:
@@ -606,7 +627,7 @@ func test_exhausted_shield_lets_damage_through() -> void:
 	var layout: Dictionary[Vector2i, PartData] = {
 		Vector2i(0, 0): HULL_PLATING, Vector2i(1, 0): SHIELD, REAR_MIDDLE: THRUSTER,
 	}
-	# Hit 1 on (0,0) takes 2 from the shield, hit 2 on the shield itself finds none left.
+	# Hit 1 on (0,0) takes 2 from the shield; hit 2 on the shield itself is never covered.
 	var event: RunResult.CardEvent = _resolve_one(_card(CardData.Kind.PIRATE_AMBUSH, 2, 2), layout)
 	assert_eq(event.hits[0].absorbed, 2)
 	assert_eq(event.hits[0].damage_to_part, 0)
@@ -630,10 +651,24 @@ func test_overkill_damage_stops_at_zero_hp() -> void:
 	assert_eq(event.destroyed_cells, [Vector2i(0, 0)] as Array[Vector2i])
 
 
+func test_shield_does_not_cover_its_own_cell() -> void:
+	# The shield has full capacity but takes the hit on its own cell.
+	var layout: Dictionary[Vector2i, PartData] = {Vector2i(0, 0): SHIELD, REAR_MIDDLE: THRUSTER}
+	var event: RunResult.CardEvent = _resolve_one(_card(CardData.Kind.PIRATE_AMBUSH, 1, 2), layout)
+	var hit: RunResult.HitEvent = event.hits[0]
+	assert_eq(hit.struck_cell, Vector2i(0, 0))
+	assert_eq(hit.absorbed, 0)
+	assert_eq(hit.shield_cell, NO_CELL)
+	assert_eq(hit.damage_to_part, 2)
+	assert_true(hit.destroyed)
+	assert_false(event.countered)
+
+
 func test_shield_destroyed_mid_card_stops_covering() -> void:
-	# Hit 1 drains the weak shield on (0,0), hit 2 destroys it, hit 3 on (2,0),
-	# which it covered, takes part damage.
-	var weak_shield: PartData = _part(PartData.Kind.SHIELD, 1, 1)
+	# Hit 1 on (0,0) draws 1 of the shield's 2 capacity, hit 2 destroys the
+	# shield with capacity still left, hit 3 on (2,0), which it covered, takes
+	# part damage.
+	var weak_shield: PartData = _part(PartData.Kind.SHIELD, 1, 2)
 	var layout: Dictionary[Vector2i, PartData] = {
 		Vector2i(0, 0): HULL_PLATING, Vector2i(1, 0): weak_shield, Vector2i(2, 0): HULL_PLATING,
 		REAR_MIDDLE: THRUSTER,
@@ -651,11 +686,13 @@ func test_shield_destroyed_mid_card_stops_covering() -> void:
 
 
 func test_partial_absorption_of_a_multi_damage_hit() -> void:
-	var layout: Dictionary[Vector2i, PartData] = {Vector2i(0, 0): SHIELD, REAR_MIDDLE: THRUSTER}
+	var layout: Dictionary[Vector2i, PartData] = {
+		Vector2i(0, 0): HULL_PLATING, Vector2i(1, 0): SHIELD, REAR_MIDDLE: THRUSTER,
+	}
 	var hit: RunResult.HitEvent = _resolve_one(_card(CardData.Kind.PIRATE_AMBUSH, 1, 3), layout).hits[0]
 	assert_eq(hit.absorbed, 2)
 	assert_eq(hit.damage_to_part, 1)
-	assert_eq(hit.part_hp_after, 1)
+	assert_eq(hit.part_hp_after, 3)
 
 
 func test_shield_capacity_refreshes_every_card() -> void:
