@@ -24,7 +24,8 @@ const FUEL_STATUS_COLORS: Dictionary[MissionReadout.FuelStatus, Color] = {
 	MissionReadout.FuelStatus.SPARE: OK_COLOR,
 }
 
-var mission: MissionData
+## Set before _ready to play another mission; otherwise MISSION_PATH is loaded.
+var mission: MissionData = null
 var build: ShipBuild = ShipBuild.new()
 ## The seed of the latest launch, reused by the next one after Retry.
 var run_seed: int = 0
@@ -52,7 +53,8 @@ var _pending_record: Dictionary = {}
 
 
 func _ready() -> void:
-	mission = load(MISSION_PATH) as MissionData
+	if mission == null:
+		mission = load(MISSION_PATH) as MissionData
 	_palette.show_parts(mission.parts)
 	_input_layer.build = build
 	_input_layer.build_changed.connect(_on_build_changed)

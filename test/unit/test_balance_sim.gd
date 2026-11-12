@@ -7,13 +7,7 @@ const BalanceSim = preload("res://tools/balance/balance_sim.gd")
 const BalanceReport = preload("res://tools/balance/balance_report.gd")
 const RunBalance = preload("res://tools/balance/run_balance.gd")
 
-const CARGO_RUN: MissionData = preload("res://data/missions/cargo_run.tres")
-const THRUSTER: PartData = preload("res://data/parts/thruster.tres")
-const FUEL_TANK: PartData = preload("res://data/parts/fuel_tank.tres")
-const CARGO_HOLD: PartData = preload("res://data/parts/cargo_hold.tres")
-const SHIELD: PartData = preload("res://data/parts/shield.tres")
-const HULL_PLATING: PartData = preload("res://data/parts/hull_plating.tres")
-const GUN: PartData = preload("res://data/parts/gun.tres")
+const Fixtures = preload("res://test/support/fixtures.gd")
 
 const META: Dictionary = {
 	"timestamp": "2026-11-11T09:30:00Z",
@@ -25,10 +19,12 @@ const META: Dictionary = {
 	"runtime_seconds": 1.5,
 }
 
+var _fx: Fixtures = Fixtures.new()
+
 
 ## Cargo Run with a smaller palette, so brute force over every layout is quick.
 func _tiny(parts: Array[PartData], cargo_required: int) -> MissionData:
-	var mission: MissionData = CARGO_RUN.duplicate() as MissionData
+	var mission: MissionData = _fx.cargo_run.duplicate() as MissionData
 	mission.parts = parts
 	mission.cargo_required = cargo_required
 	return mission
@@ -45,9 +41,9 @@ func _result(code: int, wins: int, runs: int, out_of_fuel: int) -> BalanceSim.Bu
 
 func test_launchable_total_matches_brute_force() -> void:
 	var missions: Array[MissionData] = [
-		_tiny([THRUSTER, CARGO_HOLD], 2),
-		_tiny([CARGO_HOLD, THRUSTER], 0),
-		_tiny([GUN, THRUSTER, CARGO_HOLD], 1),
+		_tiny([_fx.thruster, _fx.cargo_hold], 2),
+		_tiny([_fx.cargo_hold, _fx.thruster], 0),
+		_tiny([_fx.gun, _fx.thruster, _fx.cargo_hold], 1),
 	]
 	for mission: MissionData in missions:
 		var entries: Array[PartData] = BalanceSim.palette(mission)
@@ -61,23 +57,23 @@ func test_launchable_total_matches_brute_force() -> void:
 
 
 func test_cargo_run_launchable_total_is_a_fraction_of_all_layouts() -> void:
-	var total: int = BalanceSim.launchable_total(CARGO_RUN)
-	assert_eq(BalanceSim.layout_count(BalanceSim.palette(CARGO_RUN).size()), 40353607)
+	var total: int = BalanceSim.launchable_total(_fx.cargo_run)
+	assert_eq(BalanceSim.layout_count(BalanceSim.palette(_fx.cargo_run).size()), 40353607)
 	assert_gt(total, 0)
 	assert_lt(total, 40353607)
 
 
 func test_encode_decode_round_trip() -> void:
-	var entries: Array[PartData] = BalanceSim.palette(CARGO_RUN)
+	var entries: Array[PartData] = BalanceSim.palette(_fx.cargo_run)
 	var build: ShipBuild = ShipBuild.new()
-	build.place(Vector2i(0, 0), GUN)
-	build.place(Vector2i(1, 0), SHIELD)
-	build.place(Vector2i(2, 0), HULL_PLATING)
-	build.place(Vector2i(0, 1), CARGO_HOLD)
-	build.place(Vector2i(1, 1), FUEL_TANK)
-	build.place(Vector2i(2, 1), CARGO_HOLD)
-	build.place(Vector2i(0, 2), THRUSTER)
-	build.place(Vector2i(2, 2), THRUSTER)
+	build.place(Vector2i(0, 0), _fx.gun)
+	build.place(Vector2i(1, 0), _fx.shield)
+	build.place(Vector2i(2, 0), _fx.hull_plating)
+	build.place(Vector2i(0, 1), _fx.cargo_hold)
+	build.place(Vector2i(1, 1), _fx.fuel_tank)
+	build.place(Vector2i(2, 1), _fx.cargo_hold)
+	build.place(Vector2i(0, 2), _fx.thruster)
+	build.place(Vector2i(2, 2), _fx.thruster)
 	var code: int = BalanceSim.encode(build, entries)
 	var decoded: ShipBuild = BalanceSim.decode(code, entries)
 	for index: int in BalanceSim.CELLS:
@@ -88,20 +84,20 @@ func test_encode_decode_round_trip() -> void:
 
 
 func test_sampled_builds_are_distinct_launchable_and_deterministic() -> void:
-	var codes: PackedInt64Array = BalanceSim.select_builds(CARGO_RUN, 300, 7)
+	var codes: PackedInt64Array = BalanceSim.select_builds(_fx.cargo_run, 300, 7)
 	assert_eq(codes.size(), 300)
 	var seen: Dictionary[int, bool] = {}
-	var entries: Array[PartData] = BalanceSim.palette(CARGO_RUN)
+	var entries: Array[PartData] = BalanceSim.palette(_fx.cargo_run)
 	for code: int in codes:
 		assert_false(seen.has(code), "duplicate build %d" % code)
 		seen[code] = true
-		assert_true(BalanceSim.is_launchable(code, entries, CARGO_RUN))
-	assert_eq(BalanceSim.select_builds(CARGO_RUN, 300, 7), codes)
-	assert_ne(BalanceSim.select_builds(CARGO_RUN, 300, 8), codes)
+		assert_true(BalanceSim.is_launchable(code, entries, _fx.cargo_run))
+	assert_eq(BalanceSim.select_builds(_fx.cargo_run, 300, 7), codes)
+	assert_ne(BalanceSim.select_builds(_fx.cargo_run, 300, 8), codes)
 
 
 func test_dense_sample_and_exhaustive_selection() -> void:
-	var mission: MissionData = _tiny([THRUSTER, CARGO_HOLD], 2)
+	var mission: MissionData = _tiny([_fx.thruster, _fx.cargo_hold], 2)
 	var every: PackedInt64Array = BalanceSim.all_launchable(mission)
 	var total: int = BalanceSim.launchable_total(mission)
 	assert_eq(BalanceSim.select_builds(mission, 0, 1), every)
@@ -118,13 +114,13 @@ func test_dense_sample_and_exhaustive_selection() -> void:
 
 
 func test_evaluate_matches_resolver_and_is_deterministic() -> void:
-	var codes: PackedInt64Array = BalanceSim.select_builds(CARGO_RUN, 6, 3)
-	var first: Array[BalanceSim.BuildResult] = BalanceSim.evaluate(CARGO_RUN, codes, 30)
-	var second: Array[BalanceSim.BuildResult] = BalanceSim.evaluate(CARGO_RUN, codes, 30)
+	var codes: PackedInt64Array = BalanceSim.select_builds(_fx.cargo_run, 6, 3)
+	var first: Array[BalanceSim.BuildResult] = BalanceSim.evaluate(_fx.cargo_run, codes, 30)
+	var second: Array[BalanceSim.BuildResult] = BalanceSim.evaluate(_fx.cargo_run, codes, 30)
 	# Chunks of 4 over 6 codes: a full chunk then a partial one.
 	var chunked: Array[BalanceSim.BuildResult] = BalanceSim.evaluate(
-			CARGO_RUN, codes, 30, BalanceSim.DEFAULT_THREADS, Callable(), 4)
-	var entries: Array[PartData] = BalanceSim.palette(CARGO_RUN)
+			_fx.cargo_run, codes, 30, BalanceSim.DEFAULT_THREADS, Callable(), 4)
+	var entries: Array[PartData] = BalanceSim.palette(_fx.cargo_run)
 	assert_eq(first.size(), codes.size())
 	assert_eq(chunked.size(), codes.size())
 	for i: int in codes.size():
@@ -138,7 +134,7 @@ func test_evaluate_matches_resolver_and_is_deterministic() -> void:
 		losses.resize(RunResult.LossReason.size())
 		var build: ShipBuild = BalanceSim.decode(codes[i], entries)
 		for run_seed: int in range(1, 31):
-			var run: RunResult = RunResolver.resolve(build, CARGO_RUN, run_seed)
+			var run: RunResult = RunResolver.resolve(build, _fx.cargo_run, run_seed)
 			if run.won:
 				wins += 1
 			else:
@@ -160,11 +156,11 @@ func test_rank_orders_by_wins_then_code() -> void:
 
 
 func test_report_has_every_section_with_few_builds() -> void:
-	var codes: PackedInt64Array = BalanceSim.select_builds(CARGO_RUN, 10, 1)
+	var codes: PackedInt64Array = BalanceSim.select_builds(_fx.cargo_run, 10, 1)
 	var results: Array[BalanceSim.BuildResult] = []
 	for i: int in codes.size():
 		results.append(_result(codes[i], i * 50, 500, 500 - i * 50))
-	var report: String = BalanceReport.build(CARGO_RUN, results, META)
+	var report: String = BalanceReport.build(_fx.cargo_run, results, META)
 	for expected: String in [
 		"2026-11-11T09:30:00Z", "abc123", "`cargo_run`", "10 of 1000 launchable", "| Seeds per build | 500",
 		"| Sample seed | 1 |", "1.5 s", "## Overall", "Average win rate across evaluated builds: **45.0%**",
@@ -178,17 +174,17 @@ func test_report_has_every_section_with_few_builds() -> void:
 
 
 func test_bottom_list_notes_ties_at_the_lowest_rate() -> void:
-	var codes: PackedInt64Array = BalanceSim.select_builds(CARGO_RUN, 30, 2)
+	var codes: PackedInt64Array = BalanceSim.select_builds(_fx.cargo_run, 30, 2)
 	var results: Array[BalanceSim.BuildResult] = []
 	for i: int in codes.size():
 		var wins: int = 100 if i < 5 else 0
 		results.append(_result(codes[i], wins, 500, 500 - wins))
-	var report: String = BalanceReport.build(CARGO_RUN, results, META)
+	var report: String = BalanceReport.build(_fx.cargo_run, results, META)
 	assert_string_contains(report, "25 builds share the lowest win rate (0.0%); 20 shown, by layout code.")
 
 
 func test_exhaustive_header_and_all_ties_shown() -> void:
-	var mission: MissionData = _tiny([THRUSTER, CARGO_HOLD], 2)
+	var mission: MissionData = _tiny([_fx.thruster, _fx.cargo_hold], 2)
 	var codes: PackedInt64Array = BalanceSim.select_builds(mission, 0, 1)
 	var total: int = BalanceSim.launchable_total(mission)
 	assert_eq(codes.size(), total)
@@ -290,39 +286,39 @@ func test_parse_args_confirm_seeds() -> void:
 ## Gravity Well), two side fuel tanks, two front cargo holds.
 func _exact_fuel_build() -> ShipBuild:
 	var build: ShipBuild = ShipBuild.new()
-	build.place(Vector2i(0, 2), THRUSTER)
-	build.place(Vector2i(1, 2), THRUSTER)
-	build.place(Vector2i(0, 1), FUEL_TANK)
-	build.place(Vector2i(2, 1), FUEL_TANK)
-	build.place(Vector2i(0, 0), CARGO_HOLD)
-	build.place(Vector2i(1, 0), CARGO_HOLD)
+	build.place(Vector2i(0, 2), _fx.thruster)
+	build.place(Vector2i(1, 2), _fx.thruster)
+	build.place(Vector2i(0, 1), _fx.fuel_tank)
+	build.place(Vector2i(2, 1), _fx.fuel_tank)
+	build.place(Vector2i(0, 0), _fx.cargo_hold)
+	build.place(Vector2i(1, 0), _fx.cargo_hold)
 	return build
 
 
 func test_readout_valid_counts_exact_fuel() -> void:
-	var entries: Array[PartData] = BalanceSim.palette(CARGO_RUN)
+	var entries: Array[PartData] = BalanceSim.palette(_fx.cargo_run)
 	var exact: ShipBuild = _exact_fuel_build()
-	assert_eq(MissionReadout.fuel_status(exact, CARGO_RUN), MissionReadout.FuelStatus.EXACT)
-	assert_true(MissionReadout.cargo_met(exact, CARGO_RUN))
-	assert_true(BalanceSim.readout_valid(BalanceSim.encode(exact, entries), entries, CARGO_RUN))
+	assert_eq(MissionReadout.fuel_status(exact, _fx.cargo_run), MissionReadout.FuelStatus.EXACT)
+	assert_true(MissionReadout.cargo_met(exact, _fx.cargo_run))
+	assert_true(BalanceSim.readout_valid(BalanceSim.encode(exact, entries), entries, _fx.cargo_run))
 	var short: ShipBuild = _exact_fuel_build()
 	short.remove(Vector2i(2, 1))
-	assert_eq(MissionReadout.fuel_status(short, CARGO_RUN), MissionReadout.FuelStatus.SHORT)
-	assert_false(BalanceSim.readout_valid(BalanceSim.encode(short, entries), entries, CARGO_RUN))
+	assert_eq(MissionReadout.fuel_status(short, _fx.cargo_run), MissionReadout.FuelStatus.SHORT)
+	assert_false(BalanceSim.readout_valid(BalanceSim.encode(short, entries), entries, _fx.cargo_run))
 
 
 func test_readout_valid_agrees_with_mission_readout_on_sampled_codes() -> void:
-	var entries: Array[PartData] = BalanceSim.palette(CARGO_RUN)
-	var codes: PackedInt64Array = BalanceSim.select_builds(CARGO_RUN, 3000, 11)
+	var entries: Array[PartData] = BalanceSim.palette(_fx.cargo_run)
+	var codes: PackedInt64Array = BalanceSim.select_builds(_fx.cargo_run, 3000, 11)
 	codes.append(BalanceSim.encode(_exact_fuel_build(), entries))
 	var counts: Dictionary[MissionReadout.FuelStatus, int] = {}
 	var valid_count: int = 0
 	var results: Array[BalanceSim.BuildResult] = []
 	for code: int in codes:
 		var build: ShipBuild = BalanceSim.decode(code, entries)
-		var expected: bool = MissionReadout.cargo_met(build, CARGO_RUN) and MissionReadout.fuel_met(build, CARGO_RUN)
-		assert_eq(BalanceSim.readout_valid(code, entries, CARGO_RUN), expected, "code %d" % code)
-		var status: MissionReadout.FuelStatus = MissionReadout.fuel_status(build, CARGO_RUN)
+		var expected: bool = MissionReadout.cargo_met(build, _fx.cargo_run) and MissionReadout.fuel_met(build, _fx.cargo_run)
+		assert_eq(BalanceSim.readout_valid(code, entries, _fx.cargo_run), expected, "code %d" % code)
+		var status: MissionReadout.FuelStatus = MissionReadout.fuel_status(build, _fx.cargo_run)
 		counts[status] = counts.get(status, 0) + 1
 		if expected:
 			valid_count += 1
@@ -331,10 +327,10 @@ func test_readout_valid_agrees_with_mission_readout_on_sampled_codes() -> void:
 		assert_gt(counts.get(status, 0), 0, "sample has a %s build" % MissionReadout.FuelStatus.keys()[status])
 	assert_gt(valid_count, 0)
 	assert_lt(valid_count, codes.size())
-	var valid: Dictionary[int, bool] = BalanceSim.readout_valid_codes(results, CARGO_RUN)
+	var valid: Dictionary[int, bool] = BalanceSim.readout_valid_codes(results, _fx.cargo_run)
 	assert_eq(valid.size(), valid_count)
 	for code: int in valid:
-		assert_true(BalanceSim.readout_valid(code, entries, CARGO_RUN))
+		assert_true(BalanceSim.readout_valid(code, entries, _fx.cargo_run))
 
 
 func test_median_odd_even_and_empty() -> void:
@@ -360,43 +356,43 @@ func test_distribution_buckets() -> void:
 
 
 func test_evaluate_from_first_seed_matches_resolver() -> void:
-	var codes: PackedInt64Array = BalanceSim.select_builds(CARGO_RUN, 3, 5)
+	var codes: PackedInt64Array = BalanceSim.select_builds(_fx.cargo_run, 3, 5)
 	var shifted: Array[BalanceSim.BuildResult] = BalanceSim.evaluate(
-			CARGO_RUN, codes, 20, BalanceSim.DEFAULT_THREADS, Callable(), BalanceSim.CHUNK_SIZE, 41)
-	var entries: Array[PartData] = BalanceSim.palette(CARGO_RUN)
+			_fx.cargo_run, codes, 20, BalanceSim.DEFAULT_THREADS, Callable(), BalanceSim.CHUNK_SIZE, 41)
+	var entries: Array[PartData] = BalanceSim.palette(_fx.cargo_run)
 	for i: int in codes.size():
 		assert_eq(shifted[i].runs, 20)
 		assert_eq(shifted[i].wins, _direct_wins(BalanceSim.decode(codes[i], entries), 41, 60))
 
 
 func test_confirm_uses_fresh_seeds_after_ranking_seeds() -> void:
-	var codes: PackedInt64Array = BalanceSim.select_builds(CARGO_RUN, 30, 4)
+	var codes: PackedInt64Array = BalanceSim.select_builds(_fx.cargo_run, 30, 4)
 	var results: Array[BalanceSim.BuildResult] = []
 	for i: int in codes.size():
 		results.append(_result(codes[i], i, 500, 500 - i))
-	var confirmed: Array[BalanceSim.BuildResult] = BalanceSim.confirm(CARGO_RUN, results, 500, 12)
+	var confirmed: Array[BalanceSim.BuildResult] = BalanceSim.confirm(_fx.cargo_run, results, 500, 12)
 	var top: PackedInt64Array = BalanceSim.top_codes(results, BalanceSim.CONFIRM_BUILDS)
 	assert_eq(top.size(), 20)
 	assert_eq(top[0], codes[29], "best ranking build first")
 	assert_eq(confirmed.size(), 20)
-	var entries: Array[PartData] = BalanceSim.palette(CARGO_RUN)
+	var entries: Array[PartData] = BalanceSim.palette(_fx.cargo_run)
 	for i: int in confirmed.size():
 		assert_eq(confirmed[i].code, top[i])
 		assert_eq(confirmed[i].runs, 12)
 		assert_eq(confirmed[i].wins, _direct_wins(BalanceSim.decode(top[i], entries), 501, 512))
-	assert_eq(BalanceSim.confirm(CARGO_RUN, results, 500, 0).size(), 0)
+	assert_eq(BalanceSim.confirm(_fx.cargo_run, results, 500, 0).size(), 0)
 
 
 func test_confirm_takes_every_build_when_fewer_than_20() -> void:
-	var codes: PackedInt64Array = BalanceSim.select_builds(CARGO_RUN, 10, 1)
+	var codes: PackedInt64Array = BalanceSim.select_builds(_fx.cargo_run, 10, 1)
 	var results: Array[BalanceSim.BuildResult] = []
 	for i: int in codes.size():
 		results.append(_result(codes[i], i * 50, 500, 500 - i * 50))
-	var confirmed: Array[BalanceSim.BuildResult] = BalanceSim.confirm(CARGO_RUN, results, 500, 5)
+	var confirmed: Array[BalanceSim.BuildResult] = BalanceSim.confirm(_fx.cargo_run, results, 500, 5)
 	assert_eq(confirmed.size(), 10)
 	var meta: Dictionary = META.duplicate()
 	meta["confirm_seeds"] = 5
-	var report: String = BalanceReport.build(CARGO_RUN, results, meta, {}, confirmed)
+	var report: String = BalanceReport.build(_fx.cargo_run, results, meta, {}, confirmed)
 	assert_string_contains(report, "The top 10 builds by ranking win rate (seeds 1..500) re-run on 5 fresh seeds (seeds 501..505)")
 	# Confirmation rows are "| rank | `layout` |..."; the other tables put the win rate second.
 	assert_string_contains(report, "| 10 | `")
@@ -404,7 +400,7 @@ func test_confirm_takes_every_build_when_fewer_than_20() -> void:
 
 
 func test_report_confirmation_section() -> void:
-	var codes: PackedInt64Array = BalanceSim.select_builds(CARGO_RUN, 3, 2)
+	var codes: PackedInt64Array = BalanceSim.select_builds(_fx.cargo_run, 3, 2)
 	var results: Array[BalanceSim.BuildResult] = [
 		_result(codes[0], 400, 500, 100), _result(codes[1], 300, 500, 200), _result(codes[2], 100, 500, 400),
 	]
@@ -414,8 +410,8 @@ func test_report_confirmation_section() -> void:
 	]
 	var meta: Dictionary = META.duplicate()
 	meta["confirm_seeds"] = 5000
-	var report: String = BalanceReport.build(CARGO_RUN, results, meta, {}, confirmed)
-	var entries: Array[PartData] = BalanceSim.palette(CARGO_RUN)
+	var report: String = BalanceReport.build(_fx.cargo_run, results, meta, {}, confirmed)
+	var entries: Array[PartData] = BalanceSim.palette(_fx.cargo_run)
 	var letters: PackedStringArray = BalanceReport.part_letters(entries)
 	assert_string_contains(report, "## Confirmation pass")
 	assert_string_contains(report, "re-run on 5000 fresh seeds (seeds 501..5500)")
@@ -428,42 +424,42 @@ func test_report_confirmation_section() -> void:
 
 
 func test_report_confirmation_skipped() -> void:
-	var codes: PackedInt64Array = BalanceSim.select_builds(CARGO_RUN, 3, 2)
+	var codes: PackedInt64Array = BalanceSim.select_builds(_fx.cargo_run, 3, 2)
 	var results: Array[BalanceSim.BuildResult] = [_result(codes[0], 400, 500, 100)]
 	var meta: Dictionary = META.duplicate()
 	meta["confirm_seeds"] = 0
-	var report: String = BalanceReport.build(CARGO_RUN, results, meta)
+	var report: String = BalanceReport.build(_fx.cargo_run, results, meta)
 	assert_string_contains(report, "## Confirmation pass\n\nSkipped (`--confirm-seeds=0`).")
 	meta["confirm_seeds"] = 5000
-	assert_string_contains(BalanceReport.build(CARGO_RUN, results, meta),
+	assert_string_contains(BalanceReport.build(_fx.cargo_run, results, meta),
 			"## Confirmation pass\n\nNo builds to confirm.")
-	assert_string_contains(BalanceReport.build(CARGO_RUN, results, META),
+	assert_string_contains(BalanceReport.build(_fx.cargo_run, results, META),
 			"## Confirmation pass\n\nNot run.")
 
 
 func test_build_report_wires_confirmation_and_readout_valid() -> void:
-	var codes: PackedInt64Array = BalanceSim.select_builds(CARGO_RUN, 40, 6)
-	codes.append(BalanceSim.encode(_exact_fuel_build(), BalanceSim.palette(CARGO_RUN)))
-	var results: Array[BalanceSim.BuildResult] = BalanceSim.evaluate(CARGO_RUN, codes, 10)
-	var valid_count: int = BalanceSim.readout_valid_codes(results, CARGO_RUN).size()
+	var codes: PackedInt64Array = BalanceSim.select_builds(_fx.cargo_run, 40, 6)
+	codes.append(BalanceSim.encode(_exact_fuel_build(), BalanceSim.palette(_fx.cargo_run)))
+	var results: Array[BalanceSim.BuildResult] = BalanceSim.evaluate(_fx.cargo_run, codes, 10)
+	var valid_count: int = BalanceSim.readout_valid_codes(results, _fx.cargo_run).size()
 	assert_gt(valid_count, 0)
 	var options: Dictionary = RunBalance.parse_args(PackedStringArray(["--confirm-seeds=12"]))
-	var report: String = RunBalance.build_report(CARGO_RUN, options, results, 1000, Time.get_ticks_msec())
+	var report: String = RunBalance.build_report(_fx.cargo_run, options, results, 1000, Time.get_ticks_msec())
 	assert_string_contains(report, "re-run on 12 fresh seeds (seeds 501..512)")
 	assert_string_contains(report, "Readout-valid builds: **%d** of %d evaluated" % [valid_count, results.size()])
 	assert_string_contains(report, "| 20 | `")
 	options = RunBalance.parse_args(PackedStringArray(["--confirm-seeds=0"]))
-	report = RunBalance.build_report(CARGO_RUN, options, results, 1000, Time.get_ticks_msec())
+	report = RunBalance.build_report(_fx.cargo_run, options, results, 1000, Time.get_ticks_msec())
 	assert_string_contains(report, "## Confirmation pass\n\nSkipped (`--confirm-seeds=0`).")
 	assert_string_contains(report, "Readout-valid builds: **%d** of %d evaluated" % [valid_count, results.size()])
 
 
 func test_report_readout_valid_with_no_valid_builds() -> void:
-	var codes: PackedInt64Array = BalanceSim.select_builds(CARGO_RUN, 5, 3)
+	var codes: PackedInt64Array = BalanceSim.select_builds(_fx.cargo_run, 5, 3)
 	var results: Array[BalanceSim.BuildResult] = []
 	for code: int in codes:
 		results.append(_result(code, 250, 500, 250))
-	var report: String = BalanceReport.build(CARGO_RUN, results, META, {})
+	var report: String = BalanceReport.build(_fx.cargo_run, results, META, {})
 	assert_string_contains(report, "## Readout-valid builds")
 	assert_string_contains(report, "Readout-valid builds: **0** of 5 evaluated (0.0%).")
 	assert_string_contains(report, "No evaluated build passes the readout")
@@ -472,7 +468,7 @@ func test_report_readout_valid_with_no_valid_builds() -> void:
 
 
 func test_report_readout_valid_even_group() -> void:
-	var codes: PackedInt64Array = BalanceSim.select_builds(CARGO_RUN, 6, 3)
+	var codes: PackedInt64Array = BalanceSim.select_builds(_fx.cargo_run, 6, 3)
 	# Valid builds: 0%, 10%, 30%, 100%. Two invalid at 50%.
 	var wins: PackedInt32Array = PackedInt32Array([0, 50, 150, 500, 250, 250])
 	var results: Array[BalanceSim.BuildResult] = []
@@ -481,7 +477,7 @@ func test_report_readout_valid_even_group() -> void:
 		results.append(_result(codes[i], wins[i], 500, 500 - wins[i]))
 		if i < 4:
 			valid[codes[i]] = true
-	var report: String = BalanceReport.build(CARGO_RUN, results, META, valid)
+	var report: String = BalanceReport.build(_fx.cargo_run, results, META, valid)
 	assert_string_contains(report, "Readout-valid builds: **4** of 6 evaluated (66.7%).")
 	assert_string_contains(report, "Average win rate: **35.0%**. Median win rate: **20.0%**.")
 	assert_string_contains(report, "| Win rate | All evaluated | Share | Readout-valid | Share |")
@@ -496,7 +492,7 @@ func test_report_readout_valid_even_group() -> void:
 func _direct_wins(build: ShipBuild, from: int, to: int) -> int:
 	var wins: int = 0
 	for run_seed: int in range(from, to + 1):
-		if RunResolver.resolve(build, CARGO_RUN, run_seed).won:
+		if RunResolver.resolve(build, _fx.cargo_run, run_seed).won:
 			wins += 1
 	return wins
 

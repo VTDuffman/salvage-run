@@ -4,14 +4,13 @@ extends GutTest
 ## git commit lookup, and failures that never break play.
 
 const BUILD_SCREEN_SCENE: PackedScene = preload("res://scenes/build/build_screen.tscn")
-const CARGO_RUN: MissionData = preload("res://data/missions/cargo_run.tres")
-const THRUSTER: PartData = preload("res://data/parts/thruster.tres")
-const FUEL_TANK: PartData = preload("res://data/parts/fuel_tank.tres")
-const CARGO_HOLD: PartData = preload("res://data/parts/cargo_hold.tres")
+const Fixtures = preload("res://test/support/fixtures.gd")
 
 const LOG_PATH: String = "user://test_playtest_log_unit.jsonl"
 const GIT_DIR: String = "user://test_fake_git"
 const HASH: String = "0123456789abcdef0123456789abcdef01234567"
+
+var _fx: Fixtures = Fixtures.new()
 
 
 func before_each() -> void:
@@ -30,11 +29,11 @@ func _remove(path: String) -> void:
 
 func _record(session_id: String, attempt: int) -> Dictionary:
 	var build: ShipBuild = ShipBuild.new()
-	build.place(Vector2i(0, 0), CARGO_HOLD)
-	build.place(Vector2i(2, 0), CARGO_HOLD)
-	build.place(Vector2i(1, 1), FUEL_TANK)
-	build.place(Vector2i(1, 2), THRUSTER)
-	return PlaytestRecord.build(build, CARGO_RUN, RunResolver.resolve(build, CARGO_RUN, 7), {
+	build.place(Vector2i(0, 0), _fx.cargo_hold)
+	build.place(Vector2i(2, 0), _fx.cargo_hold)
+	build.place(Vector2i(1, 1), _fx.fuel_tank)
+	build.place(Vector2i(1, 2), _fx.thruster)
+	return PlaytestRecord.build(build, _fx.cargo_run, RunResolver.resolve(build, _fx.cargo_run, 7), {
 		"timestamp": "t", "commit": null, "session_id": session_id, "attempt": attempt,
 	})
 
@@ -162,14 +161,15 @@ func test_this_repo_reports_a_full_commit() -> void:
 
 func _open_build_screen() -> Control:
 	var screen: Control = BUILD_SCREEN_SCENE.instantiate() as Control
+	screen.set("mission", _fx.cargo_run)
 	screen.set("playtest_log", PlaytestLog.new(LOG_PATH))
 	add_child_autofree(screen)
 	var build: ShipBuild = screen.get("build") as ShipBuild
-	build.place(Vector2i(0, 0), CARGO_HOLD)
-	build.place(Vector2i(2, 0), CARGO_HOLD)
-	build.place(Vector2i(0, 1), FUEL_TANK)
-	build.place(Vector2i(2, 1), FUEL_TANK)
-	build.place(Vector2i(1, 2), THRUSTER)
+	build.place(Vector2i(0, 0), _fx.cargo_hold)
+	build.place(Vector2i(2, 0), _fx.cargo_hold)
+	build.place(Vector2i(0, 1), _fx.fuel_tank)
+	build.place(Vector2i(2, 1), _fx.fuel_tank)
+	build.place(Vector2i(1, 2), _fx.thruster)
 	return screen
 
 
@@ -179,7 +179,7 @@ func _launch(screen: Control) -> RunScreen:
 
 
 func _finish(run: RunScreen) -> void:
-	run._process(PlaybackClock.DEFAULT_SECONDS_PER_CARD * (CARGO_RUN.card_pool.size() + 1))
+	run._process(PlaybackClock.DEFAULT_SECONDS_PER_CARD * (_fx.cargo_run.card_pool.size() + 1))
 	assert_true(run.is_outcome_shown())
 
 

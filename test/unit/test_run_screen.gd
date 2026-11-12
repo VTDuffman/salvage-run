@@ -6,16 +6,12 @@ extends GutTest
 
 const RUN_SCREEN_SCENE: PackedScene = preload("res://scenes/run/run_screen.tscn")
 const BUILD_SCREEN_SCENE: PackedScene = preload("res://scenes/build/build_screen.tscn")
-const CARGO_RUN: MissionData = preload("res://data/missions/cargo_run.tres")
-const THRUSTER: PartData = preload("res://data/parts/thruster.tres")
-const FUEL_TANK: PartData = preload("res://data/parts/fuel_tank.tres")
-const CARGO_HOLD: PartData = preload("res://data/parts/cargo_hold.tres")
-const SHIELD: PartData = preload("res://data/parts/shield.tres")
-const HULL_PLATING: PartData = preload("res://data/parts/hull_plating.tres")
+const Fixtures = preload("res://test/support/fixtures.gd")
 
 const SECONDS_PER_CARD: float = PlaybackClock.DEFAULT_SECONDS_PER_CARD
 const TEST_LOG_PATH: String = "user://test_playtest_log_run_screen.jsonl"
 
+var _fx: Fixtures = Fixtures.new()
 var _saved_log_path: String = ""
 
 
@@ -34,15 +30,15 @@ func after_all() -> void:
 
 func _cruiser() -> ShipBuild:
 	var build: ShipBuild = ShipBuild.new()
-	build.place(Vector2i(0, 0), CARGO_HOLD)
-	build.place(Vector2i(1, 0), HULL_PLATING)
-	build.place(Vector2i(2, 0), CARGO_HOLD)
-	build.place(Vector2i(0, 1), FUEL_TANK)
-	build.place(Vector2i(1, 1), SHIELD)
-	build.place(Vector2i(2, 1), FUEL_TANK)
-	build.place(Vector2i(0, 2), HULL_PLATING)
-	build.place(Vector2i(1, 2), THRUSTER)
-	build.place(Vector2i(2, 2), THRUSTER)
+	build.place(Vector2i(0, 0), _fx.cargo_hold)
+	build.place(Vector2i(1, 0), _fx.hull_plating)
+	build.place(Vector2i(2, 0), _fx.cargo_hold)
+	build.place(Vector2i(0, 1), _fx.fuel_tank)
+	build.place(Vector2i(1, 1), _fx.shield)
+	build.place(Vector2i(2, 1), _fx.fuel_tank)
+	build.place(Vector2i(0, 2), _fx.hull_plating)
+	build.place(Vector2i(1, 2), _fx.thruster)
+	build.place(Vector2i(2, 2), _fx.thruster)
 	return build
 
 
@@ -50,7 +46,7 @@ func _cruiser() -> ShipBuild:
 ## must visibly change and still show the part's HP.
 func _result_with_first_card_hit(build: ShipBuild) -> RunResult:
 	for run_seed: int in 300:
-		var result: RunResult = RunResolver.resolve(build, CARGO_RUN, run_seed)
+		var result: RunResult = RunResolver.resolve(build, _fx.cargo_run, run_seed)
 		if result.events.size() < 3:
 			continue
 		var cell: Vector2i = _first_struck_cell(result)
@@ -79,7 +75,7 @@ func _first_struck_cell(result: RunResult) -> Vector2i:
 func _open_run_screen(build: ShipBuild, result: RunResult) -> RunScreen:
 	var screen: RunScreen = RUN_SCREEN_SCENE.instantiate() as RunScreen
 	add_child_autofree(screen)
-	screen.start(build, result, CARGO_RUN)
+	screen.start(build, result, _fx.cargo_run)
 	return screen
 
 
@@ -133,7 +129,7 @@ func test_destroyed_cell_shows_x_and_hp_drops() -> void:
 	var build: ShipBuild = _cruiser()
 	var result: RunResult = null
 	for run_seed: int in 300:
-		var candidate: RunResult = RunResolver.resolve(build, CARGO_RUN, run_seed)
+		var candidate: RunResult = RunResolver.resolve(build, _fx.cargo_run, run_seed)
 		for event: RunResult.CardEvent in candidate.events:
 			if not event.destroyed_cells.is_empty():
 				result = candidate
@@ -184,11 +180,11 @@ func test_each_button_changes_clock_mid_run() -> void:
 
 func test_grid_shows_damage_shield_and_destroyed_colors() -> void:
 	var build: ShipBuild = ShipBuild.new()
-	build.place(Vector2i(0, 0), HULL_PLATING)
-	build.place(Vector2i(1, 0), SHIELD)
-	build.place(Vector2i(2, 0), CARGO_HOLD)
+	build.place(Vector2i(0, 0), _fx.hull_plating)
+	build.place(Vector2i(1, 0), _fx.shield)
+	build.place(Vector2i(2, 0), _fx.cargo_hold)
 	var event: RunResult.CardEvent = RunResult.CardEvent.new()
-	event.card = CARGO_RUN.card_pool[0]
+	event.card = _fx.cargo_run.card_pool[0]
 	event.hits.append(_hit(Vector2i(0, 0), 0, 1, 3, false))
 	event.hits.append(_hit(Vector2i(1, 0), 1, 0, 2, false))
 	event.hits.append(_hit(Vector2i(2, 0), 0, 2, 0, true))
@@ -207,12 +203,12 @@ func test_grid_shows_damage_shield_and_destroyed_colors() -> void:
 	assert_true(grid.get_cell_color(Vector2i(1, 0)).is_equal_approx(grid.shield_flash_color), "shield-only hit flashes blue")
 	grid.show_playback(playback, 0.0)
 	assert_eq(grid.get_cell_color(Vector2i(2, 0)), grid.destroyed_color)
-	assert_eq(grid.get_cell_text(Vector2i(2, 0)), CARGO_HOLD.display_name + "\nX")
+	assert_eq(grid.get_cell_text(Vector2i(2, 0)), _fx.cargo_hold.display_name + "\nX")
 
 
 func test_fuel_counter_never_shows_negative() -> void:
 	var event: RunResult.CardEvent = RunResult.CardEvent.new()
-	event.card = CARGO_RUN.card_pool[0]
+	event.card = _fx.cargo_run.card_pool[0]
 	event.fuel_after = -1
 	event.loss_reason = RunResult.LossReason.OUT_OF_FUEL
 	var result: RunResult = RunResult.new()
@@ -242,18 +238,19 @@ func _place_required_holds(build: ShipBuild) -> void:
 	var placed: int = 0
 	for row: int in ShipBuild.ROWS:
 		for column: int in ShipBuild.COLUMNS:
-			if placed >= CARGO_RUN.cargo_required:
+			if placed >= _fx.cargo_run.cargo_required:
 				return
 			var cell: Vector2i = Vector2i(column, row)
 			if build.get_part(cell) == null:
-				build.place(cell, CARGO_HOLD)
+				build.place(cell, _fx.cargo_hold)
 				placed += 1
-	if placed < CARGO_RUN.cargo_required:
-		fail_test("only %d free cells for %d required cargo holds" % [placed, CARGO_RUN.cargo_required])
+	if placed < _fx.cargo_run.cargo_required:
+		fail_test("only %d free cells for %d required cargo holds" % [placed, _fx.cargo_run.cargo_required])
 
 
 func test_refused_launch_opens_no_run_screen() -> void:
 	var screen: Control = BUILD_SCREEN_SCENE.instantiate() as Control
+	screen.set("mission", _fx.cargo_run)
 	add_child_autofree(screen)
 	(screen.get_node("%LaunchButton") as Button).pressed.emit()
 	assert_null(screen.call("get_run_screen"))
@@ -263,11 +260,12 @@ func test_refused_launch_opens_no_run_screen() -> void:
 
 func test_allowed_launch_opens_run_screen_and_disables_build_input() -> void:
 	var screen: Control = BUILD_SCREEN_SCENE.instantiate() as Control
+	screen.set("mission", _fx.cargo_run)
 	add_child_autofree(screen)
 	var build: ShipBuild = screen.get("build") as ShipBuild
-	build.place(Vector2i(1, 2), THRUSTER)
-	build.place(Vector2i(0, 1), FUEL_TANK)
-	build.place(Vector2i(2, 1), FUEL_TANK)
+	build.place(Vector2i(1, 2), _fx.thruster)
+	build.place(Vector2i(0, 1), _fx.fuel_tank)
+	build.place(Vector2i(2, 1), _fx.fuel_tank)
 	_place_required_holds(build)
 	(screen.get_node("%LaunchButton") as Button).pressed.emit()
 
@@ -275,7 +273,7 @@ func test_allowed_launch_opens_run_screen_and_disables_build_input() -> void:
 	assert_not_null(run_screen)
 	assert_eq(run_screen.get_parent(), screen)
 	assert_false((screen.get_node("%BuildMouseInput") as BuildMouseInput).enabled)
-	assert_eq(run_screen.get_playback().card_count(), CARGO_RUN.card_pool.size())
+	assert_eq(run_screen.get_playback().card_count(), _fx.cargo_run.card_pool.size())
 
 	(screen.get_node("%LaunchButton") as Button).pressed.emit()
 	assert_eq(screen.call("get_run_screen"), run_screen, "a second press opens nothing new")
@@ -302,10 +300,11 @@ func _cell_center(screen: Control, cell: Vector2i) -> Vector2:
 
 func test_right_click_after_launch_does_not_remove_part() -> void:
 	var screen: Control = BUILD_SCREEN_SCENE.instantiate() as Control
+	screen.set("mission", _fx.cargo_run)
 	add_child_autofree(screen)
 	var build: ShipBuild = screen.get("build") as ShipBuild
 	var cell: Vector2i = Vector2i(1, 2)
-	build.place(cell, THRUSTER)
+	build.place(cell, _fx.thruster)
 	_place_required_holds(build)
 	await wait_process_frames(2)
 	(screen.get_node("%LaunchButton") as Button).pressed.emit()
@@ -313,15 +312,16 @@ func test_right_click_after_launch_does_not_remove_part() -> void:
 	var input: BuildMouseInput = screen.get_node("%BuildMouseInput") as BuildMouseInput
 
 	input._input(_mouse_button(MOUSE_BUTTON_RIGHT, true, _cell_center(screen, cell)))
-	assert_eq(build.get_part(cell), THRUSTER, "build must not change under the run screen")
+	assert_eq(build.get_part(cell), _fx.thruster, "build must not change under the run screen")
 
 
 func test_disabling_input_cancels_drag() -> void:
 	var screen: Control = BUILD_SCREEN_SCENE.instantiate() as Control
+	screen.set("mission", _fx.cargo_run)
 	add_child_autofree(screen)
 	var build: ShipBuild = screen.get("build") as ShipBuild
 	var cell: Vector2i = Vector2i(1, 2)
-	build.place(cell, THRUSTER)
+	build.place(cell, _fx.thruster)
 	await wait_process_frames(2)
 	var input: BuildMouseInput = screen.get_node("%BuildMouseInput") as BuildMouseInput
 
@@ -329,7 +329,7 @@ func test_disabling_input_cancels_drag() -> void:
 	assert_true(input.is_dragging(), "left press on a part starts a drag")
 	input.enabled = false
 	assert_false(input.is_dragging())
-	assert_eq(build.get_part(cell), THRUSTER)
+	assert_eq(build.get_part(cell), _fx.thruster)
 
 
 # --- Outcome panel (CAP-7) -----------------------------------------------------
@@ -349,13 +349,13 @@ func test_outcome_panel_appears_only_when_playback_finishes() -> void:
 	assert_true(panel.visible)
 	assert_true(screen.is_outcome_shown())
 	assert_eq((screen.get_node("%OutcomeTitle") as Label).text, MissionReadout.outcome_title(result))
-	assert_eq((screen.get_node("%OutcomeDetail") as Label).text, MissionReadout.outcome_detail(result, CARGO_RUN))
+	assert_eq((screen.get_node("%OutcomeDetail") as Label).text, MissionReadout.outcome_detail(result, _fx.cargo_run))
 
 
 func test_outcome_panel_names_the_missed_requirement() -> void:
 	var build: ShipBuild = _cruiser()
 	build.remove(Vector2i(2, 0))
-	var result: RunResult = RunResolver.resolve(build, CARGO_RUN, 1)
+	var result: RunResult = RunResolver.resolve(build, _fx.cargo_run, 1)
 	var screen: RunScreen = _open_run_screen(build, result)
 	screen._process(SECONDS_PER_CARD * result.events.size() + 0.1)
 	assert_eq((screen.get_node("%OutcomeTitle") as Label).text, "RUN LOST")
@@ -364,7 +364,7 @@ func test_outcome_panel_names_the_missed_requirement() -> void:
 
 func test_outcome_buttons_emit_signals() -> void:
 	var build: ShipBuild = _cruiser()
-	var screen: RunScreen = _open_run_screen(build, RunResolver.resolve(build, CARGO_RUN, 1))
+	var screen: RunScreen = _open_run_screen(build, RunResolver.resolve(build, _fx.cargo_run, 1))
 	watch_signals(screen)
 	(screen.get_node("%RebuildButton") as Button).pressed.emit()
 	assert_signal_emit_count(screen, "rebuild_requested", 1)
@@ -377,14 +377,15 @@ func test_outcome_buttons_emit_signals() -> void:
 
 func _open_build_screen() -> Control:
 	var screen: Control = BUILD_SCREEN_SCENE.instantiate() as Control
+	screen.set("mission", _fx.cargo_run)
 	add_child_autofree(screen)
 	return screen
 
 
 func _ready_ship(build: ShipBuild) -> void:
-	build.place(Vector2i(1, 2), THRUSTER)
-	build.place(Vector2i(0, 1), FUEL_TANK)
-	build.place(Vector2i(2, 1), FUEL_TANK)
+	build.place(Vector2i(1, 2), _fx.thruster)
+	build.place(Vector2i(0, 1), _fx.fuel_tank)
+	build.place(Vector2i(2, 1), _fx.fuel_tank)
 	_place_required_holds(build)
 
 
@@ -396,7 +397,7 @@ func _launch(screen: Control) -> RunScreen:
 ## Plays the open run to its end, presses [param button_name], and waits a
 ## frame so the closed run screen is freed.
 func _finish_and_press(run_screen: RunScreen, button_name: String) -> void:
-	run_screen._process(SECONDS_PER_CARD * (CARGO_RUN.card_pool.size() + 1))
+	run_screen._process(SECONDS_PER_CARD * (_fx.cargo_run.card_pool.size() + 1))
 	assert_true(run_screen.is_outcome_shown())
 	(run_screen.get_node("%" + button_name) as Button).pressed.emit()
 	await wait_process_frames(1)
@@ -424,9 +425,9 @@ func _assert_back_to_building(screen: Control, layout_before: Array[PartData]) -
 
 func test_mission_panel_shows_mission_numbers() -> void:
 	var screen: Control = _open_build_screen()
-	assert_eq((screen.get_node("%MissionTitle") as Label).text, CARGO_RUN.display_name.to_upper())
+	assert_eq((screen.get_node("%MissionTitle") as Label).text, _fx.cargo_run.display_name.to_upper())
 	var text: String = (screen.get_node("%MissionLines") as Label).text
-	for line: String in MissionReadout.panel_lines(CARGO_RUN):
+	for line: String in MissionReadout.panel_lines(_fx.cargo_run):
 		assert_string_contains(text, line)
 	assert_string_contains(text, "CARGO HOLDS 2")
 	assert_string_contains(text, "CARDS 8")
@@ -456,9 +457,9 @@ func test_readout_updates_on_build_changed() -> void:
 			+ "+1 Gravity Well: counter with 2 Thrusters in rear row (have 0)")
 	assert_eq(fuel_cards.get_theme_color("font_color"), warning, "uncountered fuel cards are a warning")
 
-	build.place(Vector2i(0, 0), CARGO_HOLD)
-	build.place(Vector2i(0, 1), FUEL_TANK)
-	build.place(Vector2i(2, 1), FUEL_TANK)
+	build.place(Vector2i(0, 0), _fx.cargo_hold)
+	build.place(Vector2i(0, 1), _fx.fuel_tank)
+	build.place(Vector2i(2, 1), _fx.fuel_tank)
 	input.build_changed.emit()
 	assert_eq(cargo.text, "Cargo 1/2")
 	assert_eq(fuel.text, "Fuel 8 / 9 needed (1 short)", "Gravity Well still uncountered")
@@ -466,14 +467,14 @@ func test_readout_updates_on_build_changed() -> void:
 	assert_eq(fuel.get_theme_color("font_color"), short, "8 fuel is short of 9")
 	assert_eq(fuel_cards.text, "+1 Gravity Well: counter with 2 Thrusters in rear row (have 0)")
 
-	build.place(Vector2i(0, 2), THRUSTER)
-	build.place(Vector2i(1, 2), THRUSTER)
+	build.place(Vector2i(0, 2), _fx.thruster)
+	build.place(Vector2i(1, 2), _fx.thruster)
 	input.build_changed.emit()
 	assert_eq(fuel.text, "Fuel 8 / 8 needed (0 spare)")
 	assert_eq(fuel.get_theme_color("font_color"), warning, "no spare fuel shows in the warning color")
 	assert_false(fuel_cards.visible, "no uncountered fuel cards: line hidden")
 
-	build.place(Vector2i(1, 1), FUEL_TANK)
+	build.place(Vector2i(1, 1), _fx.fuel_tank)
 	input.build_changed.emit()
 	assert_eq(fuel.text, "Fuel 12 / 8 needed (4 spare)")
 	assert_eq(fuel.get_theme_color("font_color"), ok, "spare fuel shows in the ok color")
@@ -482,7 +483,7 @@ func test_readout_updates_on_build_changed() -> void:
 	assert_eq(fuel.text, "Fuel 8 / 8 needed (0 spare)")
 	assert_eq(fuel.get_theme_color("font_color"), warning, "back to no spare: warning again")
 
-	build.place(Vector2i(1, 0), CARGO_HOLD)
+	build.place(Vector2i(1, 0), _fx.cargo_hold)
 	build.move(Vector2i(2, 1), Vector2i(2, 0))
 	input.build_changed.emit()
 	assert_eq(cargo.text, "Cargo 2/2")
@@ -500,8 +501,8 @@ func test_readout_updates_on_build_changed() -> void:
 func test_launch_refused_when_cargo_short() -> void:
 	var screen: Control = _open_build_screen()
 	var build: ShipBuild = screen.get("build") as ShipBuild
-	build.place(Vector2i(1, 2), THRUSTER)
-	build.place(Vector2i(0, 0), CARGO_HOLD)
+	build.place(Vector2i(1, 2), _fx.thruster)
+	build.place(Vector2i(0, 0), _fx.cargo_hold)
 	assert_null(_launch(screen))
 	assert_eq((screen.get_node("%StatusLabel") as Label).text, "Launch refused: 1 cargo hold, mission needs 2.")
 	assert_true((screen.get_node("%BuildMouseInput") as BuildMouseInput).enabled)
@@ -522,14 +523,14 @@ func test_retry_same_seed_replays_card_order_with_current_build() -> void:
 	assert_true(screen.call("is_retrying_seed"))
 	assert_string_contains((screen.get_node("%StatusLabel") as Label).text, str(first_seed))
 
-	build.place(Vector2i(2, 0), HULL_PLATING)
+	build.place(Vector2i(2, 0), _fx.hull_plating)
 	(screen.get_node("%BuildMouseInput") as BuildMouseInput).build_changed.emit()
 	var second: RunScreen = _launch(screen)
 	assert_not_null(second, "relaunch allowed")
 	assert_eq(screen.get("run_seed"), first_seed)
 	assert_eq(second.get_result().seed, first_seed)
 	assert_eq(second.get_result().card_order, first_order, "same card order")
-	assert_eq(second.get_playback().get_part(Vector2i(2, 0)), HULL_PLATING, "edits are launched")
+	assert_eq(second.get_playback().get_part(Vector2i(2, 0)), _fx.hull_plating, "edits are launched")
 	assert_false(screen.call("is_retrying_seed"))
 
 
@@ -546,7 +547,7 @@ func test_refused_launch_after_retry_keeps_the_seed() -> void:
 	var retry_text: String = (screen.get_script() as Script).get_script_constant_map()["RETRY_TEXT"]
 
 	var hold_cell: Vector2i = build.cells().filter(
-			func(cell: Vector2i) -> bool: return build.get_part(cell) == CARGO_HOLD)[0]
+			func(cell: Vector2i) -> bool: return build.get_part(cell) == _fx.cargo_hold)[0]
 	build.remove(hold_cell)
 	input.build_changed.emit()
 	assert_eq(status.text, retry_text % first_seed, "retry text survives a build edit")
@@ -555,7 +556,7 @@ func test_refused_launch_after_retry_keeps_the_seed() -> void:
 	assert_string_starts_with(status.text, "Launch refused:")
 	assert_true(screen.call("is_retrying_seed"), "a refused launch does not use up the retry")
 
-	build.place(hold_cell, CARGO_HOLD)
+	build.place(hold_cell, _fx.cargo_hold)
 	input.build_changed.emit()
 	var second: RunScreen = _launch(screen)
 	assert_not_null(second)

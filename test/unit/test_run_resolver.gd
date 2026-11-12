@@ -3,24 +3,12 @@ extends GutTest
 ## shields and cascades (CAP-4), win and every loss (CAP-5), and data-driven
 ## starting fuel (CAP-8).
 
-const CARGO_RUN: MissionData = preload("res://data/missions/cargo_run.tres")
-const THRUSTER: PartData = preload("res://data/parts/thruster.tres")
-const FUEL_TANK: PartData = preload("res://data/parts/fuel_tank.tres")
-const CARGO_HOLD: PartData = preload("res://data/parts/cargo_hold.tres")
-const SHIELD: PartData = preload("res://data/parts/shield.tres")
-const HULL_PLATING: PartData = preload("res://data/parts/hull_plating.tres")
-const GUN: PartData = preload("res://data/parts/gun.tres")
-const PIRATE_AMBUSH: CardData = preload("res://data/cards/pirate_ambush.tres")
-const ASTEROID_FIELD: CardData = preload("res://data/cards/asteroid_field.tres")
-const DEBRIS_STRIKE: CardData = preload("res://data/cards/debris_strike.tres")
-const REAR_RAIDER: CardData = preload("res://data/cards/rear_raider.tres")
-const SOLAR_FLARE: CardData = preload("res://data/cards/solar_flare.tres")
-const FUEL_LEAK: CardData = preload("res://data/cards/fuel_leak.tres")
-const GRAVITY_WELL: CardData = preload("res://data/cards/gravity_well.tres")
-const CALM_SPACE: CardData = preload("res://data/cards/calm_space.tres")
+const Fixtures = preload("res://test/support/fixtures.gd")
 
 const NO_CELL: Vector2i = RunResult.NO_CELL
 const REAR_MIDDLE: Vector2i = Vector2i(1, 2)
+
+var _fx: Fixtures = Fixtures.new()
 
 
 # --- Helpers -----------------------------------------------------------------
@@ -43,7 +31,7 @@ func _build(layout: Dictionary[Vector2i, PartData]) -> ShipBuild:
 
 
 ## A hand-made card of [param kind] that is never countered by parts
-## (counter_threshold 99). A PIRATE_AMBUSH card's hit i goes down front column i.
+## (counter_threshold 99). A _fx.pirate_ambush card's hit i goes down front column i.
 func _card(kind: CardData.Kind, hits: int, damage_per_hit: int) -> CardData:
 	var card: CardData = CardData.new()
 	card.kind = kind
@@ -109,11 +97,11 @@ func _flatten(result: RunResult) -> Array:
 ## on a covered cell or misses.
 func _plus_layout() -> Dictionary[Vector2i, PartData]:
 	return {
-		Vector2i(1, 0): HULL_PLATING,
-		Vector2i(0, 1): CARGO_HOLD,
-		Vector2i(1, 1): SHIELD,
-		Vector2i(2, 1): CARGO_HOLD,
-		REAR_MIDDLE: THRUSTER,
+		Vector2i(1, 0): _fx.hull_plating,
+		Vector2i(0, 1): _fx.cargo_hold,
+		Vector2i(1, 1): _fx.shield,
+		Vector2i(2, 1): _fx.cargo_hold,
+		REAR_MIDDLE: _fx.thruster,
 	}
 
 
@@ -122,8 +110,8 @@ func _full_layout() -> Dictionary[Vector2i, PartData]:
 	var layout: Dictionary[Vector2i, PartData] = {}
 	for row: int in 3:
 		for column: int in 3:
-			layout[Vector2i(column, row)] = HULL_PLATING
-	layout[REAR_MIDDLE] = THRUSTER
+			layout[Vector2i(column, row)] = _fx.hull_plating
+	layout[REAR_MIDDLE] = _fx.thruster
 	return layout
 
 
@@ -131,13 +119,13 @@ func _full_layout() -> Dictionary[Vector2i, PartData]:
 
 func test_same_seed_gives_identical_result() -> void:
 	var build: ShipBuild = _build({
-		Vector2i(0, 0): GUN, Vector2i(1, 0): SHIELD, Vector2i(2, 0): HULL_PLATING,
-		Vector2i(0, 1): CARGO_HOLD, Vector2i(1, 1): FUEL_TANK, Vector2i(2, 1): CARGO_HOLD,
-		Vector2i(0, 2): FUEL_TANK, REAR_MIDDLE: THRUSTER, Vector2i(2, 2): SHIELD,
+		Vector2i(0, 0): _fx.gun, Vector2i(1, 0): _fx.shield, Vector2i(2, 0): _fx.hull_plating,
+		Vector2i(0, 1): _fx.cargo_hold, Vector2i(1, 1): _fx.fuel_tank, Vector2i(2, 1): _fx.cargo_hold,
+		Vector2i(0, 2): _fx.fuel_tank, REAR_MIDDLE: _fx.thruster, Vector2i(2, 2): _fx.shield,
 	})
 	for run_seed: int in [0, 7, 12345, -99]:
-		var first: RunResult = RunResolver.resolve(build, CARGO_RUN, run_seed)
-		var second: RunResult = RunResolver.resolve(build, CARGO_RUN, run_seed)
+		var first: RunResult = RunResolver.resolve(build, _fx.cargo_run, run_seed)
+		var second: RunResult = RunResolver.resolve(build, _fx.cargo_run, run_seed)
 		assert_eq(first.seed, run_seed)
 		assert_eq_deep(_flatten(first), _flatten(second))
 
@@ -146,16 +134,16 @@ func test_card_order_is_a_permutation_of_the_pool() -> void:
 	var build: ShipBuild = _build(_full_layout())
 	var orders: Dictionary = {}
 	for run_seed: int in 20:
-		var order: Array[CardData] = RunResolver.resolve(build, CARGO_RUN, run_seed).card_order
-		assert_eq(order.size(), CARGO_RUN.card_pool.size())
-		for card: CardData in CARGO_RUN.card_pool:
+		var order: Array[CardData] = RunResolver.resolve(build, _fx.cargo_run, run_seed).card_order
+		assert_eq(order.size(), _fx.cargo_run.card_pool.size())
+		for card: CardData in _fx.cargo_run.card_pool:
 			assert_eq(order.count(card), 1)
 		orders[order] = true
 	assert_gt(orders.size(), 1, "different seeds should give different orders")
 
 
 func test_debris_strike_reaches_both_flanks_and_all_rows() -> void:
-	var pool: Array[CardData] = [DEBRIS_STRIKE]
+	var pool: Array[CardData] = [_fx.debris_strike]
 	var mission: MissionData = _mission(pool)
 	var build: ShipBuild = _build(_full_layout())
 	var picks: Dictionary = {}
@@ -172,27 +160,27 @@ func test_resolver_does_not_mutate_build_or_resources() -> void:
 	RunResolver.resolve(build, _mission(pool), 3)
 	for cell: Vector2i in layout:
 		assert_eq(build.get_part(cell), layout[cell])
-	assert_eq(HULL_PLATING.max_hp, 4)
-	assert_eq(THRUSTER.max_hp, 2)
+	assert_eq(_fx.hull_plating.max_hp, 4)
+	assert_eq(_fx.thruster.max_hp, 2)
 
 
 # --- CAP-4: each card ---------------------------------------------------------
 
 func test_pirate_ambush_countered_by_front_row_gun() -> void:
 	var layout: Dictionary[Vector2i, PartData] = _full_layout()
-	layout[Vector2i(2, 0)] = GUN
-	var event: RunResult.CardEvent = _resolve_one(PIRATE_AMBUSH, layout)
+	layout[Vector2i(2, 0)] = _fx.gun
+	var event: RunResult.CardEvent = _resolve_one(_fx.pirate_ambush, layout)
 	assert_true(event.countered)
 	assert_eq(event.hits.size(), 0)
 
 
 func test_pirate_ambush_uncountered_hits_each_front_column() -> void:
 	var layout: Dictionary[Vector2i, PartData] = {
-		Vector2i(0, 1): GUN, # outside the front row: inert, still absorbs hits
-		Vector2i(1, 0): HULL_PLATING,
-		REAR_MIDDLE: THRUSTER,
+		Vector2i(0, 1): _fx.gun, # outside the front row: inert, still absorbs hits
+		Vector2i(1, 0): _fx.hull_plating,
+		REAR_MIDDLE: _fx.thruster,
 	}
-	var event: RunResult.CardEvent = _resolve_one(PIRATE_AMBUSH, layout)
+	var event: RunResult.CardEvent = _resolve_one(_fx.pirate_ambush, layout)
 	assert_false(event.countered)
 	assert_eq(event.hits.size(), 3)
 	var expected_cells: Array[Vector2i] = [Vector2i(0, 1), Vector2i(1, 0), NO_CELL]
@@ -209,9 +197,9 @@ func test_pirate_ambush_uncountered_hits_each_front_column() -> void:
 
 
 func test_destroyed_gun_no_longer_counters() -> void:
-	var layout: Dictionary[Vector2i, PartData] = {Vector2i(0, 0): GUN, REAR_MIDDLE: THRUSTER}
+	var layout: Dictionary[Vector2i, PartData] = {Vector2i(0, 0): _fx.gun, REAR_MIDDLE: _fx.thruster}
 	var smash: CardData = _card(CardData.Kind.PIRATE_AMBUSH, 1, 2)
-	var pool: Array[CardData] = [smash, PIRATE_AMBUSH]
+	var pool: Array[CardData] = [smash, _fx.pirate_ambush]
 	var build: ShipBuild = _build(layout)
 	var mission: MissionData = _mission(pool)
 	var result: RunResult = RunResolver.resolve(build, mission, _seed_for_order(build, mission, pool))
@@ -224,7 +212,7 @@ func test_asteroid_field_uncountered_strikes_random_front_lanes() -> void:
 	var build_layout: Dictionary[Vector2i, PartData] = _full_layout()
 	var build: ShipBuild = _build(build_layout)
 	for run_seed: int in 10:
-		var pool: Array[CardData] = [ASTEROID_FIELD]
+		var pool: Array[CardData] = [_fx.asteroid_field]
 		var event: RunResult.CardEvent = RunResolver.resolve(build, _mission(pool), run_seed).events[0]
 		assert_false(event.countered)
 		assert_eq(event.hits.size(), 2)
@@ -237,10 +225,10 @@ func test_asteroid_field_uncountered_strikes_random_front_lanes() -> void:
 
 func test_asteroid_field_countered_by_shield_coverage() -> void:
 	var layout: Dictionary[Vector2i, PartData] = {
-		Vector2i(0, 0): HULL_PLATING, Vector2i(1, 0): SHIELD, Vector2i(2, 0): HULL_PLATING,
-		REAR_MIDDLE: THRUSTER,
+		Vector2i(0, 0): _fx.hull_plating, Vector2i(1, 0): _fx.shield, Vector2i(2, 0): _fx.hull_plating,
+		REAR_MIDDLE: _fx.thruster,
 	}
-	var event: RunResult.CardEvent = _resolve_one(ASTEROID_FIELD, layout)
+	var event: RunResult.CardEvent = _resolve_one(_fx.asteroid_field, layout)
 	assert_true(event.countered)
 	for hit: RunResult.HitEvent in event.hits:
 		assert_eq(hit.shield_cell, Vector2i(1, 0))
@@ -250,7 +238,7 @@ func test_asteroid_field_countered_by_shield_coverage() -> void:
 
 func test_total_miss_is_not_countered() -> void:
 	var empty: Dictionary[Vector2i, PartData] = {}
-	var event: RunResult.CardEvent = _resolve_one(ASTEROID_FIELD, empty)
+	var event: RunResult.CardEvent = _resolve_one(_fx.asteroid_field, empty)
 	assert_eq(event.hits.size(), 2)
 	for hit: RunResult.HitEvent in event.hits:
 		assert_true(hit.is_miss())
@@ -260,12 +248,12 @@ func test_total_miss_is_not_countered() -> void:
 
 func test_debris_strike_uncountered_strikes_from_a_flank() -> void:
 	var layout: Dictionary[Vector2i, PartData] = {
-		Vector2i(1, 0): HULL_PLATING, Vector2i(0, 1): CARGO_HOLD, Vector2i(2, 2): HULL_PLATING,
-		REAR_MIDDLE: THRUSTER,
+		Vector2i(1, 0): _fx.hull_plating, Vector2i(0, 1): _fx.cargo_hold, Vector2i(2, 2): _fx.hull_plating,
+		REAR_MIDDLE: _fx.thruster,
 	}
 	var build: ShipBuild = _build(layout)
 	for run_seed: int in 20:
-		var pool: Array[CardData] = [DEBRIS_STRIKE]
+		var pool: Array[CardData] = [_fx.debris_strike]
 		var event: RunResult.CardEvent = RunResolver.resolve(build, _mission(pool), run_seed).events[0]
 		assert_false(event.countered)
 		assert_eq(event.hits.size(), 1)
@@ -278,12 +266,12 @@ func test_debris_strike_uncountered_strikes_from_a_flank() -> void:
 
 func test_rear_raider_uncountered_strikes_from_the_rear() -> void:
 	var layout: Dictionary[Vector2i, PartData] = {
-		Vector2i(0, 0): HULL_PLATING, Vector2i(1, 1): CARGO_HOLD, REAR_MIDDLE: THRUSTER,
-		Vector2i(2, 1): FUEL_TANK,
+		Vector2i(0, 0): _fx.hull_plating, Vector2i(1, 1): _fx.cargo_hold, REAR_MIDDLE: _fx.thruster,
+		Vector2i(2, 1): _fx.fuel_tank,
 	}
 	var build: ShipBuild = _build(layout)
 	for run_seed: int in 20:
-		var pool: Array[CardData] = [REAR_RAIDER]
+		var pool: Array[CardData] = [_fx.rear_raider]
 		var event: RunResult.CardEvent = RunResolver.resolve(build, _mission(pool), run_seed).events[0]
 		assert_false(event.countered)
 		var hit: RunResult.HitEvent = event.hits[0]
@@ -294,7 +282,7 @@ func test_rear_raider_uncountered_strikes_from_the_rear() -> void:
 
 func test_directional_cards_countered_inside_shield_coverage() -> void:
 	var build: ShipBuild = _build(_plus_layout())
-	for card: CardData in [ASTEROID_FIELD, DEBRIS_STRIKE, REAR_RAIDER] as Array[CardData]:
+	for card: CardData in [_fx.asteroid_field, _fx.debris_strike, _fx.rear_raider] as Array[CardData]:
 		for run_seed: int in 20:
 			var pool: Array[CardData] = [card]
 			var event: RunResult.CardEvent = RunResolver.resolve(build, _mission(pool), run_seed).events[0]
@@ -306,9 +294,9 @@ func test_directional_cards_countered_inside_shield_coverage() -> void:
 
 func test_solar_flare_uncountered_damages_every_part_front_first() -> void:
 	var layout: Dictionary[Vector2i, PartData] = {
-		Vector2i(2, 0): HULL_PLATING, Vector2i(0, 1): CARGO_HOLD, REAR_MIDDLE: THRUSTER,
+		Vector2i(2, 0): _fx.hull_plating, Vector2i(0, 1): _fx.cargo_hold, REAR_MIDDLE: _fx.thruster,
 	}
-	var event: RunResult.CardEvent = _resolve_one(SOLAR_FLARE, layout)
+	var event: RunResult.CardEvent = _resolve_one(_fx.solar_flare, layout)
 	assert_false(event.countered)
 	assert_eq(event.hits.size(), 3)
 	var expected: Array[Vector2i] = [Vector2i(2, 0), Vector2i(0, 1), REAR_MIDDLE]
@@ -323,9 +311,9 @@ func test_solar_flare_uncountered_damages_every_part_front_first() -> void:
 func test_solar_flare_countered_by_shield_coverage() -> void:
 	# Two side-by-side shields cover each other, and (1,1) covers the thruster.
 	var layout: Dictionary[Vector2i, PartData] = {
-		Vector2i(0, 1): SHIELD, Vector2i(1, 1): SHIELD, REAR_MIDDLE: THRUSTER,
+		Vector2i(0, 1): _fx.shield, Vector2i(1, 1): _fx.shield, REAR_MIDDLE: _fx.thruster,
 	}
-	var event: RunResult.CardEvent = _resolve_one(SOLAR_FLARE, layout)
+	var event: RunResult.CardEvent = _resolve_one(_fx.solar_flare, layout)
 	assert_true(event.countered)
 	assert_eq(event.hits.size(), 3)
 	for hit: RunResult.HitEvent in event.hits:
@@ -339,8 +327,8 @@ func test_solar_flare_ignores_shield_capacity() -> void:
 	# Four covered neighbors, more than the shield's capacity of 2: all are
 	# spared. The shield itself is not covered and takes the flare.
 	var layout: Dictionary[Vector2i, PartData] = _plus_layout()
-	assert_lt(SHIELD.shield_capacity, layout.size() - 1, "test needs more covered parts than capacity")
-	var event: RunResult.CardEvent = _resolve_one(SOLAR_FLARE, layout)
+	assert_lt(_fx.shield.shield_capacity, layout.size() - 1, "test needs more covered parts than capacity")
+	var event: RunResult.CardEvent = _resolve_one(_fx.solar_flare, layout)
 	assert_false(event.countered, "the shield's own cell is struck")
 	assert_eq(event.hits.size(), 5)
 	for hit: RunResult.HitEvent in event.hits:
@@ -358,7 +346,7 @@ func test_solar_flare_spares_covered_parts_with_capacity_one() -> void:
 	var weak_shield: PartData = _part(PartData.Kind.SHIELD, 2, 1)
 	var layout: Dictionary[Vector2i, PartData] = _plus_layout()
 	layout[Vector2i(1, 1)] = weak_shield
-	var event: RunResult.CardEvent = _resolve_one(SOLAR_FLARE, layout)
+	var event: RunResult.CardEvent = _resolve_one(_fx.solar_flare, layout)
 	for hit: RunResult.HitEvent in event.hits:
 		if hit.struck_cell != Vector2i(1, 1):
 			assert_eq(hit.damage_to_part, 0, "%s" % hit.struck_cell)
@@ -366,10 +354,10 @@ func test_solar_flare_spares_covered_parts_with_capacity_one() -> void:
 
 func test_solar_flare_damages_only_parts_outside_coverage() -> void:
 	var layout: Dictionary[Vector2i, PartData] = {
-		Vector2i(0, 0): SHIELD, Vector2i(1, 0): CARGO_HOLD, Vector2i(2, 0): CARGO_HOLD,
-		Vector2i(0, 1): HULL_PLATING, Vector2i(2, 1): HULL_PLATING, REAR_MIDDLE: THRUSTER,
+		Vector2i(0, 0): _fx.shield, Vector2i(1, 0): _fx.cargo_hold, Vector2i(2, 0): _fx.cargo_hold,
+		Vector2i(0, 1): _fx.hull_plating, Vector2i(2, 1): _fx.hull_plating, REAR_MIDDLE: _fx.thruster,
 	}
-	var event: RunResult.CardEvent = _resolve_one(SOLAR_FLARE, layout)
+	var event: RunResult.CardEvent = _resolve_one(_fx.solar_flare, layout)
 	assert_false(event.countered)
 	var spared: Array[Vector2i] = []
 	var damaged: Array[Vector2i] = []
@@ -409,9 +397,9 @@ func test_solar_flare_coverage_needs_shield_capacity_in_data() -> void:
 	# by test_cascade_destroyed_shield_exposes_cargo_to_solar_flare.
 	var not_a_shield: PartData = _part(PartData.Kind.HULL_PLATING, 4, 0)
 	var layout: Dictionary[Vector2i, PartData] = {
-		Vector2i(0, 0): not_a_shield, Vector2i(1, 0): CARGO_HOLD, REAR_MIDDLE: THRUSTER,
+		Vector2i(0, 0): not_a_shield, Vector2i(1, 0): _fx.cargo_hold, REAR_MIDDLE: _fx.thruster,
 	}
-	var event: RunResult.CardEvent = _resolve_one(SOLAR_FLARE, layout)
+	var event: RunResult.CardEvent = _resolve_one(_fx.solar_flare, layout)
 	assert_false(event.countered)
 	for hit: RunResult.HitEvent in event.hits:
 		assert_eq(hit.damage_to_part, 1)
@@ -419,17 +407,17 @@ func test_solar_flare_coverage_needs_shield_capacity_in_data() -> void:
 
 func test_fuel_leak_countered_by_two_tanks() -> void:
 	var layout: Dictionary[Vector2i, PartData] = {
-		Vector2i(0, 0): FUEL_TANK, Vector2i(1, 0): FUEL_TANK, REAR_MIDDLE: THRUSTER,
+		Vector2i(0, 0): _fx.fuel_tank, Vector2i(1, 0): _fx.fuel_tank, REAR_MIDDLE: _fx.thruster,
 	}
-	var event: RunResult.CardEvent = _resolve_one(FUEL_LEAK, layout)
+	var event: RunResult.CardEvent = _resolve_one(_fx.fuel_leak, layout)
 	assert_true(event.countered)
 	assert_eq(event.extra_fuel_lost, 0)
 	assert_eq(event.fuel_after, 8)
 
 
 func test_fuel_leak_uncountered_drains_extra_fuel() -> void:
-	var layout: Dictionary[Vector2i, PartData] = {Vector2i(0, 0): FUEL_TANK, REAR_MIDDLE: THRUSTER}
-	var pool: Array[CardData] = [FUEL_LEAK]
+	var layout: Dictionary[Vector2i, PartData] = {Vector2i(0, 0): _fx.fuel_tank, REAR_MIDDLE: _fx.thruster}
+	var pool: Array[CardData] = [_fx.fuel_leak]
 	var result: RunResult = RunResolver.resolve(_build(layout), _mission(pool, 0, 1), 1)
 	var event: RunResult.CardEvent = result.events[0]
 	assert_false(event.countered)
@@ -439,9 +427,9 @@ func test_fuel_leak_uncountered_drains_extra_fuel() -> void:
 
 func test_gravity_well_countered_by_two_rear_thrusters() -> void:
 	var layout: Dictionary[Vector2i, PartData] = {
-		Vector2i(0, 0): FUEL_TANK, Vector2i(0, 2): THRUSTER, REAR_MIDDLE: THRUSTER,
+		Vector2i(0, 0): _fx.fuel_tank, Vector2i(0, 2): _fx.thruster, REAR_MIDDLE: _fx.thruster,
 	}
-	var event: RunResult.CardEvent = _resolve_one(GRAVITY_WELL, layout)
+	var event: RunResult.CardEvent = _resolve_one(_fx.gravity_well, layout)
 	assert_true(event.countered)
 	assert_eq(event.extra_fuel_lost, 0)
 	assert_eq(event.fuel_after, 4)
@@ -449,23 +437,23 @@ func test_gravity_well_countered_by_two_rear_thrusters() -> void:
 
 func test_gravity_well_ignores_thruster_outside_rear_row() -> void:
 	var layout: Dictionary[Vector2i, PartData] = {
-		Vector2i(0, 0): FUEL_TANK, Vector2i(0, 1): THRUSTER, REAR_MIDDLE: THRUSTER,
+		Vector2i(0, 0): _fx.fuel_tank, Vector2i(0, 1): _fx.thruster, REAR_MIDDLE: _fx.thruster,
 	}
-	var event: RunResult.CardEvent = _resolve_one(GRAVITY_WELL, layout)
+	var event: RunResult.CardEvent = _resolve_one(_fx.gravity_well, layout)
 	assert_false(event.countered)
 	assert_eq(event.extra_fuel_lost, 1)
 	assert_eq(event.fuel_after, 3)
 
 
 func test_fuel_card_counters_use_the_shared_rule() -> void:
-	assert_true(RunResolver.is_fuel_card(FUEL_LEAK))
-	assert_true(RunResolver.is_fuel_card(GRAVITY_WELL))
-	for card: CardData in [PIRATE_AMBUSH, ASTEROID_FIELD, DEBRIS_STRIKE, REAR_RAIDER, SOLAR_FLARE, CALM_SPACE]:
+	assert_true(RunResolver.is_fuel_card(_fx.fuel_leak))
+	assert_true(RunResolver.is_fuel_card(_fx.gravity_well))
+	for card: CardData in [_fx.pirate_ambush, _fx.asteroid_field, _fx.debris_strike, _fx.rear_raider, _fx.solar_flare, _fx.calm_space]:
 		assert_false(RunResolver.is_fuel_card(card), card.display_name)
-	assert_eq(RunResolver.fuel_counter_kind(FUEL_LEAK), PartData.Kind.FUEL_TANK)
-	assert_eq(RunResolver.fuel_counter_kind(GRAVITY_WELL), PartData.Kind.THRUSTER)
-	assert_false(RunResolver.fuel_card_countered(FUEL_LEAK, FUEL_LEAK.counter_threshold - 1))
-	assert_true(RunResolver.fuel_card_countered(FUEL_LEAK, FUEL_LEAK.counter_threshold))
+	assert_eq(RunResolver.fuel_counter_kind(_fx.fuel_leak), PartData.Kind.FUEL_TANK)
+	assert_eq(RunResolver.fuel_counter_kind(_fx.gravity_well), PartData.Kind.THRUSTER)
+	assert_false(RunResolver.fuel_card_countered(_fx.fuel_leak, _fx.fuel_leak.counter_threshold - 1))
+	assert_true(RunResolver.fuel_card_countered(_fx.fuel_leak, _fx.fuel_leak.counter_threshold))
 
 
 ## The resolver's countered flag on a fuel card resolved first (nothing yet
@@ -473,10 +461,10 @@ func test_fuel_card_counters_use_the_shared_rule() -> void:
 func test_readout_and_resolver_agree_on_fuel_card_counters() -> void:
 	var rng: RandomNumberGenerator = RandomNumberGenerator.new()
 	rng.seed = 7
-	var options: Array[PartData] = [THRUSTER, FUEL_TANK, CARGO_HOLD, null]
+	var options: Array[PartData] = [_fx.thruster, _fx.fuel_tank, _fx.cargo_hold, null]
 	for i: int in 200:
 		var build: ShipBuild = _random_build(rng, options)
-		for card: CardData in [FUEL_LEAK, GRAVITY_WELL]:
+		for card: CardData in [_fx.fuel_leak, _fx.gravity_well]:
 			var pool: Array[CardData] = [card]
 			var event: RunResult.CardEvent = RunResolver.resolve(build, _mission(pool), 1).events[0]
 			var readout_uncountered: bool = card in MissionReadout.uncountered_fuel_cards(build, _mission(pool))
@@ -484,9 +472,9 @@ func test_readout_and_resolver_agree_on_fuel_card_counters() -> void:
 			assert_eq(event.extra_fuel_lost, card.extra_fuel_loss if readout_uncountered else 0)
 		# The full Cargo Run under several seeds: a fuel card resolved before any
 		# part is destroyed matches the readout, whatever its position.
-		var uncountered: Array[CardData] = MissionReadout.uncountered_fuel_cards(build, CARGO_RUN)
+		var uncountered: Array[CardData] = MissionReadout.uncountered_fuel_cards(build, _fx.cargo_run)
 		for run_seed: int in 5:
-			var result: RunResult = RunResolver.resolve(build, CARGO_RUN, run_seed)
+			var result: RunResult = RunResolver.resolve(build, _fx.cargo_run, run_seed)
 			for event: RunResult.CardEvent in result.events:
 				if RunResolver.is_fuel_card(event.card):
 					assert_eq(event.countered, not event.card in uncountered,
@@ -500,11 +488,11 @@ func test_readout_and_resolver_agree_on_fuel_card_counters() -> void:
 ## a Fuel Tank is destroyed (the fuel cap drops) or a fuel card that was
 ## countered at launch drains extra fuel because its counter part was destroyed.
 func test_met_fuel_runs_out_only_after_damage_to_fuel_parts() -> void:
-	var mission: MissionData = CARGO_RUN.duplicate() as MissionData
+	var mission: MissionData = _fx.cargo_run.duplicate() as MissionData
 	mission.cargo_required = 0
 	var rng: RandomNumberGenerator = RandomNumberGenerator.new()
 	rng.seed = 2026
-	var options: Array[PartData] = [THRUSTER, FUEL_TANK, CARGO_HOLD, SHIELD, HULL_PLATING, GUN, null]
+	var options: Array[PartData] = [_fx.thruster, _fx.fuel_tank, _fx.cargo_hold, _fx.shield, _fx.hull_plating, _fx.gun, null]
 	var met_builds: int = 0
 	var out_of_fuel: int = 0
 	var after_tank_loss: int = 0
@@ -553,8 +541,8 @@ func _random_build(rng: RandomNumberGenerator, options: Array[PartData]) -> Ship
 
 
 func test_calm_space_does_nothing() -> void:
-	var layout: Dictionary[Vector2i, PartData] = {Vector2i(0, 0): FUEL_TANK, REAR_MIDDLE: THRUSTER}
-	var pool: Array[CardData] = [CALM_SPACE]
+	var layout: Dictionary[Vector2i, PartData] = {Vector2i(0, 0): _fx.fuel_tank, REAR_MIDDLE: _fx.thruster}
+	var pool: Array[CardData] = [_fx.calm_space]
 	var result: RunResult = RunResolver.resolve(_build(layout), _mission(pool, 0, 1), 1)
 	var event: RunResult.CardEvent = result.events[0]
 	assert_false(event.countered)
@@ -571,7 +559,7 @@ func test_hit_passes_through_destroyed_part() -> void:
 	var weak: PartData = _part(PartData.Kind.HULL_PLATING, 1)
 	var probe: CardData = _card(CardData.Kind.PIRATE_AMBUSH, 1, 1)
 	var pool: Array[CardData] = [probe, probe]
-	var layout: Dictionary[Vector2i, PartData] = {Vector2i(0, 0): weak, Vector2i(0, 2): HULL_PLATING, REAR_MIDDLE: THRUSTER}
+	var layout: Dictionary[Vector2i, PartData] = {Vector2i(0, 0): weak, Vector2i(0, 2): _fx.hull_plating, REAR_MIDDLE: _fx.thruster}
 	var result: RunResult = RunResolver.resolve(_build(layout), _mission(pool), 1)
 	assert_eq(result.events[0].hits[0].struck_cell, Vector2i(0, 0))
 	assert_true(result.events[0].hits[0].destroyed)
@@ -583,7 +571,7 @@ func test_lane_with_only_destroyed_parts_is_a_miss() -> void:
 	var weak: PartData = _part(PartData.Kind.HULL_PLATING, 1)
 	var probe: CardData = _card(CardData.Kind.PIRATE_AMBUSH, 1, 1)
 	var pool: Array[CardData] = [probe, probe]
-	var layout: Dictionary[Vector2i, PartData] = {Vector2i(0, 0): weak, REAR_MIDDLE: THRUSTER}
+	var layout: Dictionary[Vector2i, PartData] = {Vector2i(0, 0): weak, REAR_MIDDLE: _fx.thruster}
 	var result: RunResult = RunResolver.resolve(_build(layout), _mission(pool), 1)
 	var hit: RunResult.HitEvent = result.events[1].hits[0]
 	assert_true(hit.is_miss())
@@ -597,7 +585,7 @@ func test_double_coverage_draws_from_shield_with_more_capacity() -> void:
 	var small: PartData = _part(PartData.Kind.SHIELD, 2, 1)
 	var big: PartData = _part(PartData.Kind.SHIELD, 2, 3)
 	var layout: Dictionary[Vector2i, PartData] = {
-		Vector2i(0, 1): HULL_PLATING, Vector2i(1, 1): small, Vector2i(0, 2): big, REAR_MIDDLE: THRUSTER,
+		Vector2i(0, 1): _fx.hull_plating, Vector2i(1, 1): small, Vector2i(0, 2): big, REAR_MIDDLE: _fx.thruster,
 	}
 	var hit: RunResult.HitEvent = _resolve_one(_card(CardData.Kind.PIRATE_AMBUSH, 1, 1), layout).hits[0]
 	assert_eq(hit.struck_cell, Vector2i(0, 1))
@@ -606,7 +594,7 @@ func test_double_coverage_draws_from_shield_with_more_capacity() -> void:
 
 func test_double_coverage_tie_goes_to_first_shield_in_cell_order() -> void:
 	var layout: Dictionary[Vector2i, PartData] = {
-		Vector2i(0, 1): HULL_PLATING, Vector2i(1, 1): SHIELD, Vector2i(0, 2): SHIELD, REAR_MIDDLE: THRUSTER,
+		Vector2i(0, 1): _fx.hull_plating, Vector2i(1, 1): _fx.shield, Vector2i(0, 2): _fx.shield, REAR_MIDDLE: _fx.thruster,
 	}
 	var hit: RunResult.HitEvent = _resolve_one(_card(CardData.Kind.PIRATE_AMBUSH, 1, 1), layout).hits[0]
 	assert_eq(hit.shield_cell, Vector2i(1, 1))
@@ -615,7 +603,7 @@ func test_double_coverage_tie_goes_to_first_shield_in_cell_order() -> void:
 func test_double_coverage_spreads_damage_across_shields() -> void:
 	# Two shields of 2 each cover the cell: 4 of 5 damage absorbed, 1 to the part.
 	var layout: Dictionary[Vector2i, PartData] = {
-		Vector2i(0, 1): HULL_PLATING, Vector2i(1, 1): SHIELD, Vector2i(0, 2): SHIELD, REAR_MIDDLE: THRUSTER,
+		Vector2i(0, 1): _fx.hull_plating, Vector2i(1, 1): _fx.shield, Vector2i(0, 2): _fx.shield, REAR_MIDDLE: _fx.thruster,
 	}
 	var hit: RunResult.HitEvent = _resolve_one(_card(CardData.Kind.PIRATE_AMBUSH, 1, 5), layout).hits[0]
 	assert_eq(hit.absorbed, 4)
@@ -625,7 +613,7 @@ func test_double_coverage_spreads_damage_across_shields() -> void:
 
 func test_exhausted_shield_lets_damage_through() -> void:
 	var layout: Dictionary[Vector2i, PartData] = {
-		Vector2i(0, 0): HULL_PLATING, Vector2i(1, 0): SHIELD, REAR_MIDDLE: THRUSTER,
+		Vector2i(0, 0): _fx.hull_plating, Vector2i(1, 0): _fx.shield, REAR_MIDDLE: _fx.thruster,
 	}
 	# Hit 1 on (0,0) takes 2 from the shield; hit 2 on the shield itself is never covered.
 	var event: RunResult.CardEvent = _resolve_one(_card(CardData.Kind.PIRATE_AMBUSH, 2, 2), layout)
@@ -640,7 +628,7 @@ func test_exhausted_shield_lets_damage_through() -> void:
 
 
 func test_overkill_damage_stops_at_zero_hp() -> void:
-	var layout: Dictionary[Vector2i, PartData] = {Vector2i(0, 0): CARGO_HOLD, REAR_MIDDLE: THRUSTER}
+	var layout: Dictionary[Vector2i, PartData] = {Vector2i(0, 0): _fx.cargo_hold, REAR_MIDDLE: _fx.thruster}
 	var event: RunResult.CardEvent = _resolve_one(_card(CardData.Kind.PIRATE_AMBUSH, 1, 3), layout)
 	var hit: RunResult.HitEvent = event.hits[0]
 	assert_eq(hit.struck_cell, Vector2i(0, 0))
@@ -653,7 +641,7 @@ func test_overkill_damage_stops_at_zero_hp() -> void:
 
 func test_shield_does_not_cover_its_own_cell() -> void:
 	# The shield has full capacity but takes the hit on its own cell.
-	var layout: Dictionary[Vector2i, PartData] = {Vector2i(0, 0): SHIELD, REAR_MIDDLE: THRUSTER}
+	var layout: Dictionary[Vector2i, PartData] = {Vector2i(0, 0): _fx.shield, REAR_MIDDLE: _fx.thruster}
 	var event: RunResult.CardEvent = _resolve_one(_card(CardData.Kind.PIRATE_AMBUSH, 1, 2), layout)
 	var hit: RunResult.HitEvent = event.hits[0]
 	assert_eq(hit.struck_cell, Vector2i(0, 0))
@@ -670,8 +658,8 @@ func test_shield_destroyed_mid_card_stops_covering() -> void:
 	# part damage.
 	var weak_shield: PartData = _part(PartData.Kind.SHIELD, 1, 2)
 	var layout: Dictionary[Vector2i, PartData] = {
-		Vector2i(0, 0): HULL_PLATING, Vector2i(1, 0): weak_shield, Vector2i(2, 0): HULL_PLATING,
-		REAR_MIDDLE: THRUSTER,
+		Vector2i(0, 0): _fx.hull_plating, Vector2i(1, 0): weak_shield, Vector2i(2, 0): _fx.hull_plating,
+		REAR_MIDDLE: _fx.thruster,
 	}
 	var event: RunResult.CardEvent = _resolve_one(_card(CardData.Kind.PIRATE_AMBUSH, 3, 1), layout)
 	assert_eq(event.hits[0].shield_cell, Vector2i(1, 0))
@@ -687,7 +675,7 @@ func test_shield_destroyed_mid_card_stops_covering() -> void:
 
 func test_partial_absorption_of_a_multi_damage_hit() -> void:
 	var layout: Dictionary[Vector2i, PartData] = {
-		Vector2i(0, 0): HULL_PLATING, Vector2i(1, 0): SHIELD, REAR_MIDDLE: THRUSTER,
+		Vector2i(0, 0): _fx.hull_plating, Vector2i(1, 0): _fx.shield, REAR_MIDDLE: _fx.thruster,
 	}
 	var hit: RunResult.HitEvent = _resolve_one(_card(CardData.Kind.PIRATE_AMBUSH, 1, 3), layout).hits[0]
 	assert_eq(hit.absorbed, 2)
@@ -698,7 +686,7 @@ func test_partial_absorption_of_a_multi_damage_hit() -> void:
 func test_shield_capacity_refreshes_every_card() -> void:
 	var probe: CardData = _card(CardData.Kind.PIRATE_AMBUSH, 1, 2)
 	var pool: Array[CardData] = [probe, probe]
-	var layout: Dictionary[Vector2i, PartData] = {Vector2i(0, 0): HULL_PLATING, Vector2i(1, 0): SHIELD, REAR_MIDDLE: THRUSTER}
+	var layout: Dictionary[Vector2i, PartData] = {Vector2i(0, 0): _fx.hull_plating, Vector2i(1, 0): _fx.shield, REAR_MIDDLE: _fx.thruster}
 	var result: RunResult = RunResolver.resolve(_build(layout), _mission(pool), 1)
 	for event: RunResult.CardEvent in result.events:
 		assert_eq(event.hits[0].absorbed, 2)
@@ -707,7 +695,7 @@ func test_shield_capacity_refreshes_every_card() -> void:
 
 func test_destroyed_tank_caps_fuel_immediately() -> void:
 	var layout: Dictionary[Vector2i, PartData] = {
-		Vector2i(0, 0): FUEL_TANK, Vector2i(0, 1): FUEL_TANK, REAR_MIDDLE: THRUSTER,
+		Vector2i(0, 0): _fx.fuel_tank, Vector2i(0, 1): _fx.fuel_tank, REAR_MIDDLE: _fx.thruster,
 	}
 	var pool: Array[CardData] = [_card(CardData.Kind.PIRATE_AMBUSH, 1, 2)]
 	var result: RunResult = RunResolver.resolve(_build(layout), _mission(pool, 0, 1), 1)
@@ -719,7 +707,7 @@ func test_destroyed_tank_caps_fuel_immediately() -> void:
 func test_tank_loss_does_not_raise_fuel_below_cap() -> void:
 	# Fuel 8 -> leak and burns leave 3 after two cards; losing a tank (cap 4) changes nothing.
 	var layout: Dictionary[Vector2i, PartData] = {
-		Vector2i(0, 0): FUEL_TANK, Vector2i(0, 1): FUEL_TANK, REAR_MIDDLE: THRUSTER,
+		Vector2i(0, 0): _fx.fuel_tank, Vector2i(0, 1): _fx.fuel_tank, REAR_MIDDLE: _fx.thruster,
 	}
 	var drain: CardData = _card(CardData.Kind.FUEL_LEAK, 0, 0)
 	drain.extra_fuel_loss = 2
@@ -735,18 +723,18 @@ func test_tank_loss_does_not_raise_fuel_below_cap() -> void:
 
 func test_cascade_destroyed_shield_exposes_cargo_to_solar_flare() -> void:
 	var layout: Dictionary[Vector2i, PartData] = {
-		Vector2i(0, 0): SHIELD, Vector2i(1, 0): CARGO_HOLD, REAR_MIDDLE: THRUSTER,
+		Vector2i(0, 0): _fx.shield, Vector2i(1, 0): _fx.cargo_hold, REAR_MIDDLE: _fx.thruster,
 	}
 	var build: ShipBuild = _build(layout)
 	# With the shield intact, the flare on the cargo hold is absorbed.
-	var flare_only: Array[CardData] = [SOLAR_FLARE]
+	var flare_only: Array[CardData] = [_fx.solar_flare]
 	var intact: RunResult.CardEvent = RunResolver.resolve(build, _mission(flare_only), 1).events[0]
 	assert_eq(intact.hits[1].struck_cell, Vector2i(1, 0))
 	assert_eq(intact.hits[1].absorbed, 1)
 	assert_eq(intact.hits[1].damage_to_part, 0)
 	# An earlier card destroys the shield; the flare then damages the cargo hold.
 	var smash: CardData = _card(CardData.Kind.PIRATE_AMBUSH, 1, 4)
-	var pool: Array[CardData] = [smash, SOLAR_FLARE]
+	var pool: Array[CardData] = [smash, _fx.solar_flare]
 	var mission: MissionData = _mission(pool)
 	var result: RunResult = RunResolver.resolve(build, mission, _seed_for_order(build, mission, pool))
 	assert_eq(result.events[0].destroyed_cells, [Vector2i(0, 0)] as Array[Vector2i])
@@ -763,14 +751,14 @@ func test_cascade_destroyed_shield_exposes_cargo_to_solar_flare() -> void:
 func _calm_pool(count: int) -> Array[CardData]:
 	var pool: Array[CardData] = []
 	for i: int in count:
-		pool.append(CALM_SPACE)
+		pool.append(_fx.calm_space)
 	return pool
 
 
 func test_win_with_fuel_to_spare() -> void:
 	var layout: Dictionary[Vector2i, PartData] = {
-		Vector2i(0, 0): FUEL_TANK, Vector2i(1, 0): FUEL_TANK, Vector2i(0, 1): CARGO_HOLD,
-		Vector2i(1, 1): CARGO_HOLD, REAR_MIDDLE: THRUSTER,
+		Vector2i(0, 0): _fx.fuel_tank, Vector2i(1, 0): _fx.fuel_tank, Vector2i(0, 1): _fx.cargo_hold,
+		Vector2i(1, 1): _fx.cargo_hold, REAR_MIDDLE: _fx.thruster,
 	}
 	var result: RunResult = RunResolver.resolve(_build(layout), _mission(_calm_pool(4), 2, 1), 1)
 	assert_true(result.won)
@@ -780,7 +768,7 @@ func test_win_with_fuel_to_spare() -> void:
 
 
 func test_win_at_exactly_zero_fuel() -> void:
-	var layout: Dictionary[Vector2i, PartData] = {Vector2i(0, 0): FUEL_TANK, REAR_MIDDLE: THRUSTER}
+	var layout: Dictionary[Vector2i, PartData] = {Vector2i(0, 0): _fx.fuel_tank, REAR_MIDDLE: _fx.thruster}
 	var result: RunResult = RunResolver.resolve(_build(layout), _mission(_calm_pool(4), 0, 1), 1)
 	assert_true(result.won)
 	assert_eq(result.events.size(), 4)
@@ -788,7 +776,7 @@ func test_win_at_exactly_zero_fuel() -> void:
 
 
 func test_loss_out_of_fuel_stops_the_run() -> void:
-	var layout: Dictionary[Vector2i, PartData] = {Vector2i(0, 0): FUEL_TANK, REAR_MIDDLE: THRUSTER}
+	var layout: Dictionary[Vector2i, PartData] = {Vector2i(0, 0): _fx.fuel_tank, REAR_MIDDLE: _fx.thruster}
 	var result: RunResult = RunResolver.resolve(_build(layout), _mission(_calm_pool(8), 0, 1), 1)
 	assert_false(result.won)
 	assert_eq(result.loss_reason, RunResult.LossReason.OUT_OF_FUEL)
@@ -799,9 +787,9 @@ func test_loss_out_of_fuel_stops_the_run() -> void:
 
 
 func test_loss_no_thruster() -> void:
-	var layout: Dictionary[Vector2i, PartData] = {Vector2i(1, 0): FUEL_TANK, REAR_MIDDLE: THRUSTER}
+	var layout: Dictionary[Vector2i, PartData] = {Vector2i(1, 0): _fx.fuel_tank, REAR_MIDDLE: _fx.thruster}
 	var raid: CardData = _card(CardData.Kind.REAR_RAIDER, 1, 2)
-	var pool: Array[CardData] = [raid, CALM_SPACE, CALM_SPACE]
+	var pool: Array[CardData] = [raid, _fx.calm_space, _fx.calm_space]
 	var build: ShipBuild = _build(layout)
 	var mission: MissionData = _mission(pool, 0, 0)
 	# Find a seed whose raid comes down the middle column.
@@ -818,7 +806,7 @@ func test_loss_no_thruster() -> void:
 
 
 func test_thruster_outside_rear_row_loses_after_first_card() -> void:
-	var layout: Dictionary[Vector2i, PartData] = {Vector2i(1, 1): THRUSTER}
+	var layout: Dictionary[Vector2i, PartData] = {Vector2i(1, 1): _fx.thruster}
 	var result: RunResult = RunResolver.resolve(_build(layout), _mission(_calm_pool(3)), 1)
 	assert_eq(result.loss_reason, RunResult.LossReason.NO_THRUSTER)
 	assert_eq(result.events.size(), 1)
@@ -826,14 +814,14 @@ func test_thruster_outside_rear_row_loses_after_first_card() -> void:
 
 func test_loss_cargo_lost() -> void:
 	var layout: Dictionary[Vector2i, PartData] = {
-		Vector2i(0, 0): CARGO_HOLD, Vector2i(1, 0): HULL_PLATING, Vector2i(2, 0): HULL_PLATING,
-		Vector2i(0, 1): CARGO_HOLD, REAR_MIDDLE: THRUSTER,
+		Vector2i(0, 0): _fx.cargo_hold, Vector2i(1, 0): _fx.hull_plating, Vector2i(2, 0): _fx.hull_plating,
+		Vector2i(0, 1): _fx.cargo_hold, REAR_MIDDLE: _fx.thruster,
 	}
 	var smash: CardData = _card(CardData.Kind.PIRATE_AMBUSH, 1, 2)
-	var pool: Array[CardData] = [smash, CALM_SPACE, CALM_SPACE]
+	var pool: Array[CardData] = [smash, _fx.calm_space, _fx.calm_space]
 	var build: ShipBuild = _build(layout)
 	var mission: MissionData = _mission(pool, 2, 0)
-	var result: RunResult = RunResolver.resolve(build, mission, _seed_for_order(build, mission, [CALM_SPACE, smash, CALM_SPACE] as Array[CardData]))
+	var result: RunResult = RunResolver.resolve(build, mission, _seed_for_order(build, mission, [_fx.calm_space, smash, _fx.calm_space] as Array[CardData]))
 	assert_false(result.won)
 	assert_eq(result.loss_reason, RunResult.LossReason.CARGO_LOST)
 	assert_eq(result.events.size(), 2)
@@ -841,7 +829,7 @@ func test_loss_cargo_lost() -> void:
 
 
 func test_too_few_cargo_holds_loses_after_first_card() -> void:
-	var layout: Dictionary[Vector2i, PartData] = {Vector2i(0, 0): CARGO_HOLD, REAR_MIDDLE: THRUSTER}
+	var layout: Dictionary[Vector2i, PartData] = {Vector2i(0, 0): _fx.cargo_hold, REAR_MIDDLE: _fx.thruster}
 	var result: RunResult = RunResolver.resolve(_build(layout), _mission(_calm_pool(3), 2, 0), 1)
 	assert_eq(result.loss_reason, RunResult.LossReason.CARGO_LOST)
 	assert_eq(result.events.size(), 1)
@@ -849,7 +837,7 @@ func test_too_few_cargo_holds_loses_after_first_card() -> void:
 
 func test_loss_priority_no_thruster_over_cargo() -> void:
 	var layout: Dictionary[Vector2i, PartData] = {
-		Vector2i(0, 0): CARGO_HOLD, Vector2i(2, 0): CARGO_HOLD, REAR_MIDDLE: THRUSTER,
+		Vector2i(0, 0): _fx.cargo_hold, Vector2i(2, 0): _fx.cargo_hold, REAR_MIDDLE: _fx.thruster,
 	}
 	var pool: Array[CardData] = [_card(CardData.Kind.SOLAR_FLARE, 1, 2)]
 	var result: RunResult = RunResolver.resolve(_build(layout), _mission(pool, 2, 0), 1)
@@ -860,14 +848,14 @@ func test_loss_priority_no_thruster_over_cargo() -> void:
 
 
 func test_loss_priority_out_of_fuel_over_cargo() -> void:
-	var layout: Dictionary[Vector2i, PartData] = {Vector2i(0, 0): CARGO_HOLD, REAR_MIDDLE: THRUSTER}
+	var layout: Dictionary[Vector2i, PartData] = {Vector2i(0, 0): _fx.cargo_hold, REAR_MIDDLE: _fx.thruster}
 	var result: RunResult = RunResolver.resolve(_build(layout), _mission(_calm_pool(2), 2, 1), 1)
 	assert_eq(result.loss_reason, RunResult.LossReason.OUT_OF_FUEL)
 	assert_eq(result.events.size(), 1)
 
 
 func test_loss_priority_no_thruster_over_out_of_fuel() -> void:
-	var layout: Dictionary[Vector2i, PartData] = {Vector2i(0, 0): CARGO_HOLD}
+	var layout: Dictionary[Vector2i, PartData] = {Vector2i(0, 0): _fx.cargo_hold}
 	var result: RunResult = RunResolver.resolve(_build(layout), _mission(_calm_pool(2), 2, 1), 1)
 	assert_eq(result.loss_reason, RunResult.LossReason.NO_THRUSTER)
 	assert_false(result.won)
@@ -877,39 +865,39 @@ func test_loss_priority_no_thruster_over_out_of_fuel() -> void:
 # --- CAP-8: data-driven numbers -----------------------------------------------
 
 func test_starting_fuel_follows_tank_capacity_data() -> void:
-	var big_tank: PartData = FUEL_TANK.duplicate() as PartData
+	var big_tank: PartData = _fx.fuel_tank.duplicate() as PartData
 	big_tank.fuel_capacity = 7
-	var pool: Array[CardData] = [CALM_SPACE]
+	var pool: Array[CardData] = [_fx.calm_space]
 	var normal: RunResult = RunResolver.resolve(
-			_build({Vector2i(0, 0): FUEL_TANK, REAR_MIDDLE: THRUSTER} as Dictionary[Vector2i, PartData]),
+			_build({Vector2i(0, 0): _fx.fuel_tank, REAR_MIDDLE: _fx.thruster} as Dictionary[Vector2i, PartData]),
 			_mission(pool), 1)
 	var bigger: RunResult = RunResolver.resolve(
-			_build({Vector2i(0, 0): big_tank, Vector2i(1, 0): big_tank, REAR_MIDDLE: THRUSTER} as Dictionary[Vector2i, PartData]),
+			_build({Vector2i(0, 0): big_tank, Vector2i(1, 0): big_tank, REAR_MIDDLE: _fx.thruster} as Dictionary[Vector2i, PartData]),
 			_mission(pool), 1)
-	assert_eq(normal.starting_fuel, FUEL_TANK.fuel_capacity)
+	assert_eq(normal.starting_fuel, _fx.fuel_tank.fuel_capacity)
 	assert_eq(bigger.starting_fuel, 14)
 
 
 func test_cargo_run_starting_fuel_is_tanks_times_capacity() -> void:
 	var layout: Dictionary[Vector2i, PartData] = {
-		Vector2i(0, 0): FUEL_TANK, Vector2i(1, 0): FUEL_TANK, Vector2i(2, 0): FUEL_TANK, REAR_MIDDLE: THRUSTER,
+		Vector2i(0, 0): _fx.fuel_tank, Vector2i(1, 0): _fx.fuel_tank, Vector2i(2, 0): _fx.fuel_tank, REAR_MIDDLE: _fx.thruster,
 	}
-	var result: RunResult = RunResolver.resolve(_build(layout), CARGO_RUN, 5)
-	assert_eq(result.starting_fuel, 3 * FUEL_TANK.fuel_capacity)
+	var result: RunResult = RunResolver.resolve(_build(layout), _fx.cargo_run, 5)
+	assert_eq(result.starting_fuel, 3 * _fx.fuel_tank.fuel_capacity)
 
 
 # --- Cargo holds after each card ----------------------------------------------
 
 func test_cargo_holds_after_counts_working_holds_each_card() -> void:
 	var layout: Dictionary[Vector2i, PartData] = {
-		Vector2i(0, 0): CARGO_HOLD, Vector2i(1, 0): HULL_PLATING, Vector2i(2, 0): HULL_PLATING,
-		Vector2i(0, 1): CARGO_HOLD, REAR_MIDDLE: THRUSTER,
+		Vector2i(0, 0): _fx.cargo_hold, Vector2i(1, 0): _fx.hull_plating, Vector2i(2, 0): _fx.hull_plating,
+		Vector2i(0, 1): _fx.cargo_hold, REAR_MIDDLE: _fx.thruster,
 	}
 	var smash: CardData = _card(CardData.Kind.PIRATE_AMBUSH, 1, 2)
-	var pool: Array[CardData] = [smash, CALM_SPACE, CALM_SPACE]
+	var pool: Array[CardData] = [smash, _fx.calm_space, _fx.calm_space]
 	var build: ShipBuild = _build(layout)
 	var mission: MissionData = _mission(pool, 2, 0)
-	var result: RunResult = RunResolver.resolve(build, mission, _seed_for_order(build, mission, [CALM_SPACE, smash, CALM_SPACE] as Array[CardData]))
+	var result: RunResult = RunResolver.resolve(build, mission, _seed_for_order(build, mission, [_fx.calm_space, smash, _fx.calm_space] as Array[CardData]))
 	assert_eq(result.events[0].cargo_holds_after, 2)
 	assert_eq(result.events[1].cargo_holds_after, 1, "the losing card reports the holds left")
 	assert_eq(result.loss_reason, RunResult.LossReason.CARGO_LOST)
@@ -917,7 +905,7 @@ func test_cargo_holds_after_counts_working_holds_each_card() -> void:
 
 func test_cargo_holds_after_set_on_a_won_run() -> void:
 	var layout: Dictionary[Vector2i, PartData] = {
-		Vector2i(0, 0): CARGO_HOLD, Vector2i(1, 0): CARGO_HOLD, Vector2i(2, 0): CARGO_HOLD, REAR_MIDDLE: THRUSTER,
+		Vector2i(0, 0): _fx.cargo_hold, Vector2i(1, 0): _fx.cargo_hold, Vector2i(2, 0): _fx.cargo_hold, REAR_MIDDLE: _fx.thruster,
 	}
 	var result: RunResult = RunResolver.resolve(_build(layout), _mission(_calm_pool(3), 2, 0), 1)
 	assert_true(result.won)
@@ -927,12 +915,12 @@ func test_cargo_holds_after_set_on_a_won_run() -> void:
 
 func test_starting_fuel_equals_build_fuel_capacity() -> void:
 	var layouts: Array[Dictionary] = [
-		{Vector2i(0, 1): FUEL_TANK, Vector2i(2, 1): FUEL_TANK, REAR_MIDDLE: THRUSTER},
-		{Vector2i(0, 0): FUEL_TANK, Vector2i(0, 2): GUN, REAR_MIDDLE: THRUSTER},
-		{REAR_MIDDLE: THRUSTER},
+		{Vector2i(0, 1): _fx.fuel_tank, Vector2i(2, 1): _fx.fuel_tank, REAR_MIDDLE: _fx.thruster},
+		{Vector2i(0, 0): _fx.fuel_tank, Vector2i(0, 2): _fx.gun, REAR_MIDDLE: _fx.thruster},
+		{REAR_MIDDLE: _fx.thruster},
 	]
 	for layout: Dictionary in layouts:
 		var typed: Dictionary[Vector2i, PartData] = {}
 		typed.assign(layout)
 		var build: ShipBuild = _build(typed)
-		assert_eq(RunResolver.resolve(build, CARGO_RUN, 3).starting_fuel, build.fuel_capacity())
+		assert_eq(RunResolver.resolve(build, _fx.cargo_run, 3).starting_fuel, build.fuel_capacity())
