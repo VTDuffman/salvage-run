@@ -27,3 +27,8 @@ Pixel-art roguelike ship-builder: assemble a ship on a grid, then watch a passiv
 - Keep game rules (grid, damage, card resolution) in plain logic classes with no Node/scene dependencies so GUT can test them headlessly; scenes only display results.
 
 <!-- /bmad:context -->
+
+## Balance simulator
+
+- Dev tooling in `tools/balance/` (behind `.gdignore`; no `class_name`, scripts `preload` each other; nothing in the game references it). Run: `<godot-console> --headless --path . -s res://tools/balance/run_balance.gd -- [--builds=N|all] [--seeds=N] [--sample-seed=N] [--mission=ID]`. Defaults: 20000 sampled builds, 500 seeds (the minimum), sample seed 1, `cargo_run`. Writes `_bmad-output/balance/balance-<UTC yyyymmdd-hhmmss>.md` and prints the path; exit 1 on bad args. See `README.md` for flag details.
+- It shards work across one child Godot process per core: GDScript object creation is serialized engine-wide, so more than ~4 threads per process slows `RunResolver` down.
