@@ -10,4 +10,4 @@ direction = 4
 hits = 1
 damage_per_hit = 1
 countered_text = "shields soaked up the flare"
-uncountered_text = "the flare scorched every part"
+uncountered_text = "the flare scorched every unshielded part"

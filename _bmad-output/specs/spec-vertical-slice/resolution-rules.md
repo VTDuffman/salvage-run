@@ -11,10 +11,11 @@ The damage model is a starting proposal. Tune it freely, but keep it in pure log
 ## Shields
 
 - Coverage is the shield's own cell plus its orthogonal neighbors. Only working (not destroyed) shields cover.
-- When a struck cell is inside any coverage, the damage is drawn from shield capacity instead of the part. This applies to directional hits and to each Solar Flare hit.
+- When a cell struck by a directional hit is inside any coverage, the damage is drawn from shield capacity instead of the part.
 - Each shield has 2 capacity per card, refreshed at the start of every card.
 - When a cell is covered by more than one shield, damage is drawn from the shield with the most capacity remaining.
 - When no covering shield has capacity left, the part takes the damage.
+- **Solar Flare ignores capacity.** A part inside any working shield's coverage takes no flare damage, however much capacity is left, and the flare draws no capacity. A part outside all coverage takes 1 damage.
 
 ## Damage and destruction
 

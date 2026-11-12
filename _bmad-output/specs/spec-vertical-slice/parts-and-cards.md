@@ -9,7 +9,7 @@ Starting values. All of them live in data files and will change during tuning. G
 | Thruster | Required to launch. Works only in the rear row. Outside it, it is inert but still occupies the cell and absorbs hits. | 2 |
 | Fuel Tank | Adds 4 fuel to a shared pool. When a tank is destroyed, the pool is capped at working tanks × 4. | 2 |
 | Cargo Hold | Holds 1 cargo unit. The mission requires a set number intact. | 2 |
-| Shield | Covers its own cell plus its orthogonal neighbors. Absorbs up to 2 damage per card; capacity refreshes every card. | 2 |
+| Shield | Covers its own cell plus its orthogonal neighbors. Absorbs up to 2 damage per card; capacity refreshes every card. Solar Flare ignores capacity: covered parts take no flare damage. | 2 |
 | Hull Plating | No function. Pure protection. | 4 |
 | Gun | Cancels Pirate Ambush when in the front row. Outside it, it is inert but still occupies the cell and absorbs hits. | 2 |
 
@@ -23,7 +23,7 @@ The shuffled 8-card pool is the run: each card appears exactly once. Every hit d
 | Asteroid Field | Front | Shield coverage on struck cells | 2 hits down random front columns (picked independently) |
 | Debris Strike | Random flank | Shield coverage on struck cell | 1 hit down a random row from that flank |
 | Rear Raider | Rear | Shield coverage on struck cell | 1 hit up a random rear column |
-| Solar Flare | All | Shield coverage on each part | 1 damage to every part |
+| Solar Flare | All | Shield coverage on each part (capacity ignored) | 1 damage to every part outside shield coverage |
 | Fuel Leak | Internal | 2+ working Fuel Tanks | Lose 2 extra fuel |
 | Gravity Well | Internal | 2+ working Thrusters (rear row) | Lose 1 extra fuel |
 | Calm Space | — | — | Nothing happens (pacing) |

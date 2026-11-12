@@ -58,7 +58,8 @@ class HitEvent:
 	var struck_cell: Vector2i = RunResult.NO_CELL
 	## The first shield that absorbed damage from this hit, or NO_CELL.
 	var shield_cell: Vector2i = RunResult.NO_CELL
-	## Damage drawn from shield capacity.
+	## Damage stopped by shields: drawn from capacity, except for Solar Flare,
+	## which ignores capacity and is absorbed whole inside coverage.
 	var absorbed: int = 0
 	## Damage dealt to the struck part's HP.
 	var damage_to_part: int = 0

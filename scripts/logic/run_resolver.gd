@@ -144,7 +144,7 @@ func _apply_card_effect(event: RunResult.CardEvent, card: CardData) -> void:
 			for i: int in card.hits:
 				for cell: Vector2i in _cells:
 					if _hp[cell] > 0:
-						_strike(event, card, RunResult.Side.NONE, -1, cell)
+						_flare_strike(event, card, cell)
 			event.countered = _absorbed_without_damage(event)
 		CardData.Kind.CALM_SPACE:
 			pass
@@ -222,6 +222,39 @@ func _strike(event: RunResult.CardEvent, card: CardData, side: RunResult.Side, l
 			break
 	hit.part_hp_after = _hp[cell]
 	event.hits.append(hit)
+
+
+## One Solar Flare hit on the part at [param cell]. The flare ignores shield
+## capacity: inside any working shield's coverage the whole hit is absorbed and
+## no capacity is drawn; outside coverage the part takes the card's damage.
+func _flare_strike(event: RunResult.CardEvent, card: CardData, cell: Vector2i) -> void:
+	var hit: RunResult.HitEvent = RunResult.HitEvent.new()
+	hit.entry_side = RunResult.Side.NONE
+	hit.struck_cell = cell
+	hit.shield_cell = _first_covering_shield(cell)
+	if hit.shield_cell != RunResult.NO_CELL:
+		hit.absorbed = card.damage_per_hit
+	else:
+		hit.damage_to_part = mini(card.damage_per_hit, _hp[cell])
+		_hp[cell] -= hit.damage_to_part
+		if _hp[cell] == 0:
+			hit.destroyed = true
+			event.destroyed_cells.append(cell)
+			_fuel = mini(_fuel, _fuel_cap())
+	hit.part_hp_after = _hp[cell]
+	event.hits.append(hit)
+
+
+## The first working shield in ShipBuild.cells() order whose coverage holds
+## [param cell], whatever its capacity left, or NO_CELL if none covers it.
+func _first_covering_shield(cell: Vector2i) -> Vector2i:
+	for shield: Vector2i in _cells:
+		if _parts[shield].shield_capacity <= 0 or not _is_working(shield):
+			continue
+		var offset: Vector2i = (shield - cell).abs()
+		if offset.x + offset.y <= 1:
+			return shield
+	return RunResult.NO_CELL
 
 
 ## The working shield covering [param cell] with the most capacity left (ties

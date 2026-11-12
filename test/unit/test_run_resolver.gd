@@ -320,28 +320,80 @@ func test_solar_flare_uncountered_damages_every_part_front_first() -> void:
 	assert_eq(event.hits[1].part_hp_after, 1)
 
 
-func test_solar_flare_countered_by_shield_capacity() -> void:
+func test_solar_flare_countered_by_shield_coverage() -> void:
 	var layout: Dictionary[Vector2i, PartData] = {Vector2i(1, 1): SHIELD, REAR_MIDDLE: THRUSTER}
 	var event: RunResult.CardEvent = _resolve_one(SOLAR_FLARE, layout)
 	assert_true(event.countered)
 	for hit: RunResult.HitEvent in event.hits:
 		assert_eq(hit.absorbed, 1)
 		assert_eq(hit.damage_to_part, 0)
+		assert_eq(hit.shield_cell, Vector2i(1, 1))
 
 
-func test_solar_flare_exhausts_shield_in_front_first_order() -> void:
-	# Five covered parts, capacity 2: the first two in cells() order are spared.
-	var event: RunResult.CardEvent = _resolve_one(SOLAR_FLARE, _plus_layout())
+func test_solar_flare_ignores_shield_capacity() -> void:
+	# Five covered parts, more than the shield's capacity of 2: all are spared.
+	var layout: Dictionary[Vector2i, PartData] = _plus_layout()
+	assert_lt(SHIELD.shield_capacity, layout.size(), "test needs more covered parts than capacity")
+	var event: RunResult.CardEvent = _resolve_one(SOLAR_FLARE, layout)
+	assert_true(event.countered)
+	assert_eq(event.hits.size(), 5)
+	for hit: RunResult.HitEvent in event.hits:
+		assert_eq(hit.absorbed, 1, "%s" % hit.struck_cell)
+		assert_eq(hit.damage_to_part, 0, "%s" % hit.struck_cell)
+		assert_eq(hit.shield_cell, Vector2i(1, 1))
+
+
+func test_solar_flare_spares_covered_parts_with_capacity_one() -> void:
+	var weak_shield: PartData = _part(PartData.Kind.SHIELD, 2, 1)
+	var layout: Dictionary[Vector2i, PartData] = _plus_layout()
+	layout[Vector2i(1, 1)] = weak_shield
+	var event: RunResult.CardEvent = _resolve_one(SOLAR_FLARE, layout)
+	assert_true(event.countered)
+	for hit: RunResult.HitEvent in event.hits:
+		assert_eq(hit.damage_to_part, 0, "%s" % hit.struck_cell)
+
+
+func test_solar_flare_damages_only_parts_outside_coverage() -> void:
+	var layout: Dictionary[Vector2i, PartData] = {
+		Vector2i(0, 0): SHIELD, Vector2i(1, 0): CARGO_HOLD, Vector2i(2, 0): CARGO_HOLD,
+		Vector2i(0, 1): HULL_PLATING, Vector2i(2, 1): HULL_PLATING, REAR_MIDDLE: THRUSTER,
+	}
+	var event: RunResult.CardEvent = _resolve_one(SOLAR_FLARE, layout)
 	assert_false(event.countered)
-	var absorbed: Array[Vector2i] = []
+	var spared: Array[Vector2i] = []
 	var damaged: Array[Vector2i] = []
 	for hit: RunResult.HitEvent in event.hits:
 		if hit.absorbed > 0:
-			absorbed.append(hit.struck_cell)
+			assert_eq(hit.damage_to_part, 0)
+			spared.append(hit.struck_cell)
 		else:
+			assert_eq(hit.damage_to_part, 1)
+			assert_eq(hit.shield_cell, RunResult.NO_CELL)
 			damaged.append(hit.struck_cell)
-	assert_eq(absorbed, [Vector2i(1, 0), Vector2i(0, 1)] as Array[Vector2i])
-	assert_eq(damaged, [Vector2i(1, 1), Vector2i(2, 1), REAR_MIDDLE] as Array[Vector2i])
+	assert_eq(spared, [Vector2i(0, 0), Vector2i(1, 0), Vector2i(0, 1)] as Array[Vector2i])
+	assert_eq(damaged, [Vector2i(2, 0), Vector2i(2, 1), REAR_MIDDLE] as Array[Vector2i])
+
+
+func test_solar_flare_does_not_draw_shield_capacity() -> void:
+	# Three flare passes strike the five covered parts 15 times against a
+	# capacity of 2; none get through because the flare never draws capacity.
+	var layout: Dictionary[Vector2i, PartData] = _plus_layout()
+	var event: RunResult.CardEvent = _resolve_one(_card(CardData.Kind.SOLAR_FLARE, 3, 1), layout)
+	assert_true(event.countered, "three flare passes over five covered parts, none damaged")
+	assert_eq(event.hits.size(), 15)
+
+
+func test_solar_flare_coverage_needs_shield_capacity_in_data() -> void:
+	# Only parts with shield_capacity > 0 cover; a destroyed shield is covered
+	# by test_cascade_destroyed_shield_exposes_cargo_to_solar_flare.
+	var not_a_shield: PartData = _part(PartData.Kind.HULL_PLATING, 4, 0)
+	var layout: Dictionary[Vector2i, PartData] = {
+		Vector2i(0, 0): not_a_shield, Vector2i(1, 0): CARGO_HOLD, REAR_MIDDLE: THRUSTER,
+	}
+	var event: RunResult.CardEvent = _resolve_one(SOLAR_FLARE, layout)
+	assert_false(event.countered)
+	for hit: RunResult.HitEvent in event.hits:
+		assert_eq(hit.damage_to_part, 1)
 
 
 func test_fuel_leak_countered_by_two_tanks() -> void:
